@@ -13,7 +13,7 @@ from torch.cuda.amp import GradScaler
 
 if __name__ == "__main__":
 
-    weights_file = "mymodel_small.model"
+    weights_file = "mymodel_new.model"
     model = get_model("model_configs/celeb64.yaml")
 
     learning_rate = 1e-2
