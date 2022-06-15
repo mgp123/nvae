@@ -18,7 +18,7 @@ if __name__ == "__main__":
 
     learning_rate = 1e-2
     weight_decay = 3e-4
-    warmup_epochs = 5
+    warmup_epochs = 10
     epochs = 10
     learning_rate_min =1e-5
     batch_size = 4
