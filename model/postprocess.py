@@ -14,6 +14,9 @@ class PostprocessCell(nn.Module):
 
     def forward(self, x):
         return self.model(x)
+
+    def regularization_loss(self):
+        return self.model.regularization_loss()
  
 class Postprocess(nn.Module):
     def __init__(self, in_channels, num_blocks, num_cells_per_block, channel_multiplier):
@@ -44,3 +47,9 @@ class Postprocess(nn.Module):
     def forward(self, x):
         return self.model(x)
         
+    def regularization_loss(self):
+        loss = 0
+        for i, l in enumerate(self.model):
+            if i != 0:
+                loss += l.regularization_loss()
+        return loss

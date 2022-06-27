@@ -17,9 +17,9 @@ from torch import nn
 |       |     |       |     |       |      |       |     |       |     |       |
 |       ------>       ------>       ------->       ------>       ------>       |
 |       |     |       |     |       |      |       |     |       |     |       |
-+---|---+     +---|---+     +-------+      +---|---+     +---|---+     +---|---+
-    |             |                            |             |             |    
-    v             v                            v             v             v    
++---|---+     +---|---+     +---|---+      +---|---+     +---|---+     +---|---+
+    |             |             |              |             |             |    
+    v             v             v              v             v             v    
 
 """
 
@@ -30,10 +30,7 @@ class SplitterConcatenate(nn.Sequential):
         """
         Concatenates multiple splitters into a bigger one
         """
-        super(SplitterConcatenate,self).__init__(*args)
-
-
-
+        super(SplitterConcatenate, self).__init__(*args)
 
     # note that we can't check if module types are Splitter
     # because they can be hidden inside another module
@@ -44,6 +41,5 @@ class SplitterConcatenate(nn.Sequential):
         for module in self:
             l = module(last_output)
             last_output = l[-1]
-            y += l[:-1]
-        y.append(last_output)
+            y += l
         return y

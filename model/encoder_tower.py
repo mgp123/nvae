@@ -1,39 +1,44 @@
 from torch import nn
-from model.encoder_block import EncoderBlock
+from model.encoder_group import EncoderGroup
 
 from model.splitter_concatenate import SplitterConcatenate
 
 
 class EncoderTower(nn.Module):
     def __init__(self, in_channels, number_of_scales, initial_splits_per_scale, cells_per_split=2, channel_multiplier=2,
-                 exponential_decay_splits=1,min_splits=1):
+                 exponential_decay_splits=1, min_splits=1):
         super(EncoderTower, self).__init__()
 
         self.model = SplitterConcatenate()
-
 
         number_of_splits = initial_splits_per_scale
         i_channels = in_channels
         o_channels = in_channels * channel_multiplier
 
-
         for i in range(number_of_scales):
             self.model.add_module(
                 "enc_block_" + str(i + 1),
-                EncoderBlock(
+                EncoderGroup(
                     in_channels=i_channels,
-                    continuation_channels=o_channels,
+                    continuation_channels=o_channels if i != 0 else i_channels,
                     cells_per_split=cells_per_split,
                     number_of_splits=number_of_splits,
-                    downsample=i != number_of_scales - 1  # don't downsample last block
+                    downscale=i != 0  # don't downscale before first group
                 )
             )
+            if i != 0:
+                i_channels = o_channels
+                o_channels *= channel_multiplier
 
-            i_channels = o_channels
-            o_channels *= channel_multiplier
             number_of_splits = max(min_splits, number_of_splits // exponential_decay_splits)
 
     def forward(self, x):
         y = self.model(x)
         y.reverse()
         return y
+
+    def regularization_loss(self):
+        loss = 0
+        for l in self.model:
+            loss += l.regularization_loss()
+        return loss

@@ -1,7 +1,9 @@
+import torch
 import torch.nn as nn
 from model.skip_cell import SkipCell
 
 from model.squeeze_excitation import SqueezeExcitation
+from model.utils import regularization_conv2d
 
 
 class ResidualCellEncoder(nn.Module):
@@ -33,8 +35,24 @@ class ResidualCellEncoder(nn.Module):
             in_channels=in_channels,
             out_channels=out_channels,
             stride=stride
-            )
+        )
 
     def forward(self, x):
         skip = self.skip(x)
-        return skip + 0.1*self.model(x)
+        return skip + 0.1 * self.model(x)
+
+    def get_batchnorm_cells(self):
+        return [self.model[0], self.model[3]]
+
+    def get_conv_cells(self):
+        return [self.model[2], self.model[5]]
+
+    def regularization_loss(self):
+        loss = 0
+        for b_layer in self.get_batchnorm_cells():
+            loss += torch.max(torch.abs(b_layer.weight))
+
+        for c_layer in self.get_conv_cells():
+            loss += regularization_conv2d(c_layer)
+
+        return loss

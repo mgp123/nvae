@@ -24,6 +24,6 @@ def get_model(yaml_path):
             conf.get("channel_multiplier",2),
             conf.get("exponential_scaling",1),
             conf.get("min_splits",1),
-            conf.get("use_mix",False)
+            conf.get("sampling_method","gaussian")
     )
     return res

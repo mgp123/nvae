@@ -2,4 +2,5 @@ dataset
 .idea
 __pycache__
 *.model
+*.checkpoint
 runs
