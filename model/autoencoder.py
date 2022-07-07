@@ -1,3 +1,4 @@
+from tkinter import X
 from torch import nn
 import torch
 from torch.cuda.amp import autocast
@@ -7,7 +8,7 @@ from model.encoder_tower import EncoderTower
 from model.mixer import Mixer
 from model.postprocess import Postprocess
 from model.preprocess import Preprocess
-from model.utils import DiscMixLogistic, Normal
+from model.distributions import Normal, DiscMixLogistic, Distribution
 
 
 class Autoencoder(nn.Module):
@@ -25,7 +26,9 @@ class Autoencoder(nn.Module):
                  channel_multiplier=2,
                  exponential_scaling=1,
                  min_splits=1,
-                 sampling_method="gaussian"):
+                 sampling_method="gaussian",
+                 n_mix=3,
+                 fixed_flows=False):
         super(Autoencoder, self).__init__()
 
         self.latent_size = latent_size
@@ -37,11 +40,13 @@ class Autoencoder(nn.Module):
 
         channels_towers_inside = channel_towers * (channel_multiplier ** (num_blocks_prepost))
 
-        self.initial_transform = nn.Conv2d(
-            in_channels=3,
-            out_channels=channel_towers,
-            kernel_size=3,
-            padding=1
+        self.initial_transform = nn.utils.weight_norm(
+                nn.Conv2d(
+                in_channels=3,
+                out_channels=channel_towers,
+                kernel_size=3,
+                padding=1
+            )
         )
 
         self.preprocess = Preprocess(
@@ -68,7 +73,8 @@ class Autoencoder(nn.Module):
             latent_size,
             num_flows,
             exponential_scaling=exponential_scaling,
-            min_splits=min_splits
+            min_splits=min_splits,
+            fixed_flows=fixed_flows and num_flows > 0
         )
 
         self.f_channels = channels_towers_inside * (channel_multiplier ** (number_of_scales - 1))
@@ -94,20 +100,19 @@ class Autoencoder(nn.Module):
             channel_multiplier
         )
 
-        d_parameters = None
-        if sampling_method == "mixture":
-            d_parameters = 9*2
-        elif sampling_method == "gaussian":
-            d_parameters = 6  # 3 for channel mean, 3 for log_std
-        else:
-            raise ValueError
+        d_parameters = \
+            3 * \
+            Distribution.get_class(sampling_method).params_per_subpixel(n_mix)
 
         self.to_distribution_conv = nn.Sequential(
             nn.ELU(),
-            nn.Conv2d(
-                channel_towers,
-                d_parameters,
-                3, padding=1, bias=True)
+            nn.utils.weight_norm( 
+                nn.Conv2d(
+                    channel_towers,
+                    d_parameters,
+                    3, padding=1, bias=True
+                    )
+            )
         )
 
     def forward(self, x):
@@ -126,49 +131,55 @@ class Autoencoder(nn.Module):
             kl_losses.append(kl_loss)
             residual_dec = self.decoder_tower(residual_dec, i)
 
-        x_distribution = self.to_distribution_conv(
+        distribution_params = self.to_distribution_conv(
             self.postprocess(residual_dec)
         )
+        x_distribution = Distribution.construct_from_params(
+            self.sampling_method,
+            distribution_params
+            )
 
-        if self.sampling_method == "mixture":
-            x_distribution = DiscMixLogistic(x_distribution)
-            return x_distribution, kl_losses
+        return x_distribution, kl_losses
 
-        elif self.sampling_method == "gaussian":
-            # we can see the per batch Normal distributions as a big whole batch Normal distribution
-            mu, log_sig = torch.chunk(x_distribution, 2, 1)
-            x_distribution = Normal(mu, log_sig)
-
-            return x_distribution, kl_losses
-
-    def sample(self, n, t=1):
+    def sample(self, n, t=1, final_distribution_sampling="mean"):
         residual_dec = self.decoder_constant.expand((n, -1, -1, -1))
         for i in range(self.decoder_tower.n_inputs):
             # note that the mixing for i == 0 behaves different
             residual_dec = self.mixer.decoder_only_mix(residual_dec, i, t=t)
             residual_dec = self.decoder_tower(residual_dec, i)
 
-        x_distribution = self.to_distribution_conv(
+        distribution_params = self.to_distribution_conv(
             self.postprocess(residual_dec)
         )
 
-        x = None 
-
-        if self.sampling_method == "mixture":
-            x_distribution = DiscMixLogistic(x_distribution)
-            x = x_distribution.sample()
-        elif self.sampling_method == "gaussian":
-            # we can see the per batch Normal distributions as a big whole batch Normal distribution
-            mu, log_sig = torch.chunk(x_distribution, 2, 1)
-            x_distribution = Normal(mu, log_sig)
-            # we may stick with mu if we have a gaussian disttribution
-            # note that we still generate x_distribution due to the soft_clamp
-            x = x_distribution.mu
-
+        x_distribution = Distribution.construct_from_params(
+            self.sampling_method,
+            distribution_params
+            )
+        
+        x = x_distribution.get(final_distribution_sampling)
         x = torch.clamp(x, 0, 1.)
 
-        # TODO should I remove this?
-        # x = x / 2. + 0.5
+        return x
+
+    def generate_from_latents(self, zs, final_distribution_sampling="mean"):
+        batch_size = zs[0].shape[0]
+        residual_dec = self.decoder_constant.expand((batch_size, -1, -1, -1))
+        for i, z in enumerate(zs):
+            residual_dec = self.mixer.from_latent_mix(residual_dec, i, z)
+            residual_dec = self.decoder_tower(residual_dec, i)
+
+        distribution_params = self.to_distribution_conv(
+            self.postprocess(residual_dec)
+        )
+
+        x_distribution = Distribution.construct_from_params(
+            self.sampling_method,
+            distribution_params
+            )        
+        x = x_distribution.get(final_distribution_sampling)
+        x = torch.clamp(x, 0, 1.)
+
         return x
 
     def regularization_loss(self):

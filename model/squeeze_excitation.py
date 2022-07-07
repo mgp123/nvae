@@ -20,5 +20,4 @@ class SqueezeExcitation(nn.Module):
         s = s.squeeze(3).squeeze(2)
         s = self.model(s).unsqueeze(2).unsqueeze(3)
 
-
-        return x*s
+        return x * s

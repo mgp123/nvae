@@ -2,7 +2,8 @@ from torch import nn
 import torch
 from model.normal_flow_block import NormalFlowBlock
 
-from model.utils import Normal, device, regularization_conv2d
+from model.utils import device, regularization_conv2d
+from model.distributions import Normal
 
 
 # we are always going to have in_channels1==in_channels2
@@ -11,8 +12,9 @@ from model.utils import Normal, device, regularization_conv2d
 class MixerCellEncoder(nn.Module):
     def __init__(self, in_channels1, in_channels2):
         super(MixerCellEncoder, self).__init__()
-        self.model = nn.Conv2d(in_channels=in_channels2, out_channels=in_channels1, kernel_size=1)
-
+        self.model = nn.utils.weight_norm(
+            nn.Conv2d(in_channels=in_channels2, out_channels=in_channels1, kernel_size=1)
+        )
     def forward(self, x1, x2):
         return x1 + self.model(x2)
 
@@ -20,7 +22,9 @@ class MixerCellEncoder(nn.Module):
 class MixerCellDecoder(nn.Module):
     def __init__(self, in_channels1, in_channels2):
         super(MixerCellDecoder, self).__init__()
-        self.model = nn.Conv2d(in_channels=in_channels1 + in_channels2, out_channels=in_channels1, kernel_size=1)
+        self.model = nn.utils.weight_norm(
+            nn.Conv2d(in_channels=in_channels1 + in_channels2, out_channels=in_channels1, kernel_size=1)
+        )
 
     def forward(self, x1, x2):
         y = torch.cat([x1, x2], dim=1)
@@ -32,7 +36,7 @@ class DummyMixer(nn.Module):
         super(DummyMixer, self).__init__()
         self.model = nn.Sequential(
             nn.ELU(),
-            nn.Conv2d(in_channels, in_channels, kernel_size=1, bias=True),
+            nn.utils.weight_norm(nn.Conv2d(in_channels, in_channels, kernel_size=1, bias=True)),
             nn.ELU()
         )
 
@@ -49,19 +53,22 @@ class Mixer(nn.Module):
                  n_flows,
                  channel_multiplier=2,
                  exponential_scaling=1,
-                 min_splits=1):
+                 min_splits=1,
+                 fixed_flows=True):
 
         super(Mixer, self).__init__()
 
         self.latent_size = latent_size
-
+        self.fixed_flows = fixed_flows and n_flows > 0
         self.init_encoder = \
             nn.Sequential(
                 nn.ELU(),
-                nn.Conv2d(
+                nn.utils.weight_norm(
+                    nn.Conv2d(
                     in_channels=channels_towers * (channel_multiplier ** (number_of_scales - 1)),
                     out_channels=channels_towers * (channel_multiplier ** (number_of_scales - 1)),
                     kernel_size=(1, 1),
+                    )
                 ),
                 nn.ELU(),
 
@@ -87,12 +94,13 @@ class Mixer(nn.Module):
                     decoder_sampler.append(
                         nn.Sequential(
                             nn.ELU(),
-                            nn.Conv2d(
+                            nn.utils.weight_norm(
+                                nn.Conv2d(
                                 in_channels=i_channels,
                                 out_channels=latent_size * 2,
                                 kernel_size=1,
+                                )
                             ),
-
                         )
                     )
                 else:
@@ -101,11 +109,13 @@ class Mixer(nn.Module):
                     )
 
                 encoder_sampler.append(
-                    nn.Conv2d(
+                    nn.utils.weight_norm(
+                        nn.Conv2d(
                         in_channels=i_channels,
                         out_channels=latent_size * 2,
                         kernel_size=3,
                         padding=1
+                        )
                     )
                 )
 
@@ -137,50 +147,79 @@ class Mixer(nn.Module):
     def forward(self, enc_part, dec_part, i):
         m = self.encoder_mixer[i](enc_part, dec_part)
         latent = self.encoder_sampler[i](m)
+
+        # the first latent variable of the encoder 
+        # is going to try to imitate the standard normal distribution
         latent_dec = torch.zeros_like(latent)
+        
         if i != 0:
             latent_dec = self.decoder_sampler[i](dec_part)
             latent = latent + latent_dec
 
-        mu, log_sig = torch.chunk(latent, 2, 1)
-        mu_dec, log_sig_dec = torch.chunk(latent_dec, 2, 1)
 
-        distribution_enc = Normal(mu, log_sig)
-        distribution_dec = Normal(mu_dec, log_sig_dec)
+        distribution_enc = Normal(latent)
+        distribution_dec = Normal(latent_dec)
 
         z = distribution_enc.sample()
 
-        # the first latent variable of the encoder 
-        # is going to try to imitate the standard normal distribution
-        # kl_loss = distribution_enc.log_p(z) - distribution_dec.log_p(z)
+
         # kl_loss = torch.sum(kl_loss, dim=[1, 2, 3])
 
-        # temp
-        kl_loss = distribution_enc.kl(distribution_dec)
+        kl_loss = None
+        if self.fixed_flows:
+            kl_loss = distribution_enc.kl(distribution_dec)
+            z = self.normal_flow_block[i](z, m)
+        else:
+            log_enc = torch.sum(distribution_enc.log_p(z),dim=[1,2,3])
+            z = self.normal_flow_block[i](z, m)
+            log_dec = torch.sum(distribution_dec.log_p(z),dim=[1,2,3])
+            kl_loss = log_enc - log_dec
 
-        z = self.normal_flow_block[i](z, m)
+
+        # we divide the kl_loss by the amount of channels
+        # to make its contribution independent of the latent_size
+        # theoretically speaking we shouldnt do this but it seems to help to balance the kl loss
+        # kl_loss = kl_loss/self.latent_size
+
         y = self.decoder_mixer[i](dec_part, z)
 
         return y, kl_loss
 
     def decoder_only_mix(self, dec_part, i, t=1):
+        latent = None
         if i != 0:
             latent = self.decoder_sampler[i](dec_part)
-            mu, log_sig = torch.chunk(latent, 2, 1)
-            distribution = Normal(mu, log_sig,t=t)
-            z = distribution.sample()
-            z = self.normal_flow_block[i](z, None) # temp. TODO check if should remove
-
-            y = self.decoder_mixer[i](dec_part, z)
-            return y
         else:
             batch_size, _, h, w = dec_part.size()
             latent = torch.zeros((batch_size, self.latent_size * 2, h, w)).to(device)
-            mu, log_sig = torch.chunk(latent, 2, 1)
-            distribution = Normal(mu, log_sig,t=t)
-            z = distribution.sample()
-            y = self.decoder_mixer[i](dec_part, z)
-            return y
+        
+        distribution = Normal(latent,t=t)
+        z = distribution.sample()
+        
+        if self.fixed_flows:
+            z = self.normal_flow_block[i](z, None)
+
+        y = self.decoder_mixer[i](dec_part, z)
+        return y
+
+
+    def from_latent_mix(self, dec_part, i, z):
+        latent = None
+        if i != 0:
+            latent = self.decoder_sampler[i](dec_part)
+        else:
+            batch_size, _, h, w = dec_part.size()
+            latent = torch.zeros((batch_size, self.latent_size * 2, h, w)).to(device)
+        
+        distribution = Normal(latent)
+        z = distribution.normal_sample_transform(z)
+        
+        if self.fixed_flows:
+            z = self.normal_flow_block[i](z, None) 
+
+        y = self.decoder_mixer[i](dec_part, z)
+        return y
+
 
     def regularization_loss(self):
         loss = 0

@@ -10,3 +10,4 @@ cells_per_split_enc: 3
 cells_per_input_dec: 3
 channel_multiplier : 2
 exponential_scaling: 1
+fixed_flows: True

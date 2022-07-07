@@ -6,24 +6,30 @@ class NormalFlowCell(nn.Module):
         super(NormalFlowCell, self).__init__()
         hidden_channels = latent_channel * hidden_channel_multiplier
         self.model = nn.Sequential(
-            nn.Conv2d(  # TODO change for masked convolution
+            nn.utils.weight_norm(
+                nn.Conv2d(  # TODO change for masked convolution
                 in_channels=latent_channel,
                 out_channels=hidden_channels,
                 kernel_size=3,
-                padding=1),
+                padding=1)
+            ),
             nn.ELU(inplace=True),
-            nn.Conv2d(  # TODO change for masked convolution
-                in_channels=hidden_channels,
-                out_channels=hidden_channels,
-                kernel_size=5,
-                padding=2,
-                groups=hidden_channels),
+            nn.utils.weight_norm(
+                nn.Conv2d(  # TODO change for masked convolution
+                    in_channels=hidden_channels,
+                    out_channels=hidden_channels,
+                    kernel_size=5,
+                    padding=2,
+                    groups=hidden_channels)
+                ),
             nn.ELU(inplace=True),
             nn.ELU(),  # is the second ELU really necessary?
-            nn.Conv2d(  # TODO change for masked convolution
-                in_channels=hidden_channels,
-                out_channels=latent_channel,
-                kernel_size=1,
+            nn.utils.weight_norm(
+                nn.Conv2d(  # TODO change for masked convolution
+                    in_channels=hidden_channels,
+                    out_channels=latent_channel,
+                    kernel_size=1,
+                )
             ),
         )
 

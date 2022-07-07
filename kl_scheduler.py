@@ -20,7 +20,7 @@ class KLScheduler:
         kl_multiplier = []
         for i in range(model.number_of_scales):
             for k in range(number_of_splits):
-                kl_multiplier.append(2**(model.number_of_scales-1-i)/number_of_splits)
+                kl_multiplier.append((2**(model.number_of_scales-1-i))/number_of_splits)
 
             number_of_splits = max(model.min_splits, number_of_splits // model.exponential_scaling)
         

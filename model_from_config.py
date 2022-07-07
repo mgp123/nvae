@@ -1,4 +1,6 @@
+import torch
 import yaml
+from os.path import exists
 
 from model.autoencoder import Autoencoder
 
@@ -24,6 +26,22 @@ def get_model(yaml_path):
             conf.get("channel_multiplier",2),
             conf.get("exponential_scaling",1),
             conf.get("min_splits",1),
-            conf.get("sampling_method","gaussian")
+            conf.get("sampling_method","gaussian"),
+            conf.get("n_mix", 3),
+            conf.get("fixed_flows", False)
+
     )
     return res
+
+
+def load_state_from_file(model, weights_file):
+    if exists(weights_file):
+        if weights_file.split(".")[-1] == "checkpoint":
+            save = torch.load(weights_file)
+            model.load_state_dict(save["state_dict"])
+        elif weights_file.split(".")[-1] == "model":
+            model.load_state_dict(torch.load(weights_file))
+        else:
+            raise ValueError("file must be .model or .checkpoint")
+    else:
+        raise FileNotFoundError
