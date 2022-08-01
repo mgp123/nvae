@@ -24,8 +24,8 @@ config_file = "model_configs/gaussian_mixture.yaml"
 weights_file = "gaussian_mixture.checkpoint"
 config_file = "model_configs/gaussian_mixture.yaml"
 
-if len(sys.argv) >= 4:
-    weights_file = sys.argv[3]  # "saved_weights/" + sys.argv[3]+".checkpoint"
+if len(sys.argv) >= 3:
+    weights_file = sys.argv[2]  # "saved_weights/" + sys.argv[3]+".checkpoint"
     tem = get_archfile_from_checkpoint(weights_file)
     if tem is not None:
         config_file = tem
@@ -68,9 +68,9 @@ def sample(n1=3, n2=3, batches=1, iterations=20):
             plt.imshow(img_grid.permute(1, 2, 0))
             plt.axis('off')
             plt.tight_layout()
-            torchvision.utils.save_image(img_grid,"hola_"+ str(iterations) +".png")
+            # torchvision.utils.save_image(img_grid,"hola_"+ str(iterations) +".png")
             plt.show()
 
 
-iterations = 20 if len(sys.argv) < 3 else int(sys.argv[2])
+iterations = 20 if len(sys.argv) < 4 else int(sys.argv[3])
 sample(batches=1, iterations=iterations, n1=6, n2=3)

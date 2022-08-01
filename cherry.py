@@ -11,8 +11,8 @@ weights_file = "tiny_mixture.checkpoint"
 weights_file = "saved_weights/final_tiny_mixture3.model"
 config_file = "model_configs/tiny_mixture.yaml"
 
-if len(sys.argv) >= 4:
-    weights_file = sys.argv[3]  #"saved_weights/" + sys.argv[3]+".checkpoint"
+if len(sys.argv) >= 3:
+    weights_file = sys.argv[2]
     tem = get_archfile_from_checkpoint(weights_file)
     if tem is not None:
         config_file = tem
@@ -34,7 +34,7 @@ def cherry_pick(winners=8):
         n2 = 3
         n = n1*n2
 
-        iterations = 20 if len(sys.argv) < 3 else int(sys.argv[2])
+        iterations = 20 if len(sys.argv) < 4 else int(sys.argv[3])
 
         for _ in range(iterations):
             model.sample(n,t=t)
