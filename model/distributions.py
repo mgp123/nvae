@@ -17,8 +17,20 @@ logistic_distribution = torch.distributions.TransformedDistribution(
     [torch.distributions.SigmoidTransform().inv]
 )
 
+
+def logits_to_log_probs(logits):
+    m_logits, _ = torch.max(logits, dim=2, keepdim=True)
+    log_probs = torch.log(
+        torch.sum(
+            torch.exp(logits - m_logits),
+            dim=2, keepdim=True))
+    log_probs = logits - m_logits - log_probs
+    return log_probs
+
+
 # pytorch should add a torch.pi !
 log2pi = math.log(2 * math.pi)
+
 
 class Distribution:
 
@@ -35,10 +47,10 @@ class Distribution:
         pass
 
     @classmethod
-    def params_per_subpixel(cls, *args, **kwargs):
+    def params_per_subpixel(cls, *args, **kwargs) -> int:
         pass
 
-    def get(self, statistic):
+    def get(self, statistic) -> torch.Tensor:
         if statistic == "mean":
             return self.mean()
         elif statistic == "most_likely_value":
@@ -64,6 +76,7 @@ class Distribution:
     @classmethod
     def construct_from_params(cls, class_name, params) -> Distribution:
         return Distribution.get_class(class_name)(params)
+
 
 # slightly modified version of Normal class in source
 
@@ -95,7 +108,7 @@ class Normal(Distribution):
     def log_p(self, z):
         normalized_samples = (z - self.mu) / self.sig
         log_p = - 0.5 * normalized_samples * normalized_samples - torch.log(self.sig)
-        
+
         # we dont really need to add the constant if we are going to use this as the loss
         # but we add it just to be consisten with Normal mixture
         log_p -= 0.5 * log2pi
@@ -103,11 +116,9 @@ class Normal(Distribution):
         return log_p
 
     def kl(self, normal):
-        # all dims but 0
-        dims = [i+1 for i in range(len(self.sig - 1))]
-
-        log_det1 = torch.sum(torch.log(self.sig), dim=dims)
-        log_det2 = torch.sum(torch.log(normal.sig), dim=dims)
+        
+        log_det1 = torch.log(self.sig)
+        log_det2 = torch.log(normal.sig)
 
         inv_sigma2 = 1.0 / normal.sig
 
@@ -115,15 +126,20 @@ class Normal(Distribution):
 
         # trace_loss = torch.einsum('bcwh,bcwh->b', self.sig, inv_sigma2)
         # mu_loss = torch.einsum('bcwh,bcwh->b', delta_mu, delta_mu * inv_sigma2)
-        
-        # TODO check if elipsis correct here
-        trace_loss = torch.einsum('b...,b...->b', self.sig, inv_sigma2)
-        mu_loss = torch.einsum('b...,b...->b', delta_mu, delta_mu * inv_sigma2)
+
+        # trace_loss = torch.einsum('b..., b... -> b', self.sig, inv_sigma2)
+        # mu_loss = torch.einsum('b..., b... -> b', delta_mu, delta_mu * inv_sigma2)
+
+        # trace_loss = torch.sum(self.sig * inv_sigma2, dim=dims)
+        # mu_loss = torch.sum(delta_mu * inv_sigma2 * delta_mu, dim=dims)
+
 
         det_loss = log_det2 - log_det1
-        d = self.mu.shape[1] * self.mu.shape[2] * self.mu.shape[3]
+        kl_loss = (torch.square(delta_mu) + torch.square(self.sig) )
+        kl_loss = kl_loss * torch.square(inv_sigma2) - 1
+        kl_loss = det_loss + 0.5 * kl_loss
 
-        return 0.5 * (trace_loss + mu_loss + det_loss - d)
+        return kl_loss
 
     def mean(self):
         super().__init__()
@@ -138,19 +154,16 @@ class Normal(Distribution):
         return 2
 
 
-
-
 class NormalMix(Distribution):
     def __init__(self, params):
         batch_size, c, height, width = params.size()
-        n_mix = c//9
+        n_mix = c // 9
         l = soft_clamp5(params.view(batch_size, 3, 3 * n_mix, height, width))
 
         self.logits = l[:, :, :n_mix, :, :]
         self.mu = l[:, :, n_mix:2 * n_mix, :, :]
         log_sig = l[:, :, 2 * n_mix:, :, :]
         self.sig = torch.exp(log_sig) + 1e-2
-
 
     def log_p(self, z):
         z = z.unsqueeze(2)
@@ -159,12 +172,7 @@ class NormalMix(Distribution):
         log_pz = - 0.5 * normalized_samples * normalized_samples - torch.log(self.sig)
         log_pz -= 0.5 * log2pi
 
-        m_logits, _ = torch.max(self.logits, dim=2, keepdim=True)
-        log_probs = torch.log(
-            torch.sum(
-                torch.exp(self.logits - m_logits),
-                dim=2, keepdim=True))
-        log_probs = self.logits - m_logits - log_probs
+        log_probs = logits_to_log_probs(self.logits)
 
         res = log_pz + log_probs
 
@@ -175,13 +183,7 @@ class NormalMix(Distribution):
         return res
 
     def mean(self):
-        m_logits, _ = torch.max(self.logits, dim=2, keepdim=True)
-        logit_probs = torch.log(
-            torch.sum(
-                torch.exp(self.logits - m_logits),
-                dim=2, keepdim=True))
-
-        logit_probs = self.logits - m_logits - logit_probs
+        logit_probs = logits_to_log_probs(self.logits)
         probs = torch.exp(logit_probs)
         res = self.mu * probs
         res = torch.sum(res, dim=2)
@@ -189,13 +191,11 @@ class NormalMix(Distribution):
         return res
 
     def most_likely_value(self):
-        m_logits, _ = torch.max(self.logits, dim=2, keepdim=True)
-        logit_probs = torch.log(
-            torch.sum(
-                torch.exp(self.logits - m_logits),
-                dim=2, keepdim=True))
+        # technically we arent getting the most_likely_value but
+        # the most_likely_value from the most likely mix which is not exactly the same 
 
-        most_likely_mix = torch.argmax(self.logits - m_logits - logit_probs, dim=2, keepdim=True)
+        log_probs = logits_to_log_probs(self.logits)
+        most_likely_mix = torch.argmax(log_probs, dim=2, keepdim=True)
 
         x = torch.gather(self.mu, 2, most_likely_mix)
         x = x.squeeze(2)
@@ -204,9 +204,9 @@ class NormalMix(Distribution):
     def sample(self):
         selected_mask = torch.distributions.Categorical(logits=self.logits.permute(0, 1, 3, 4, 2))
         selected_mask = selected_mask.sample().unsqueeze(2).to(device)
-        
-        x = self.mu + torch.exp(self.log_scales) * torch.randn_like(self.mu).to(device)
-        
+
+        x = self.mu + self.sig * torch.randn_like(self.mu).to(device)
+
         x = torch.gather(x, 2, selected_mask)
         x = x.squeeze(2)
         return x
@@ -214,6 +214,7 @@ class NormalMix(Distribution):
     @classmethod
     def params_per_subpixel(cls, *args, **kwargs):
         return (Normal.params_per_subpixel() + 1) * args[0]
+
 
 class DiscLogistic(Distribution):
     def __init__(self, params):
@@ -224,10 +225,14 @@ class DiscLogistic(Distribution):
     def params_per_subpixel(cls, *args, **kwargs):
         return 2
 
+
 # this discrete mixture implementation is much simpler than the one from source
 class DiscMixLogistic(Distribution):
 
     def __init__(self, params):
+        # if torch.isnan(params).any() or torch.isinf(params).any():
+        #     raise ValueError('Found NaN as parameters of distribution')
+
         # assumes c % 9 == 0
         super().__init__()
         batch_size, c, height, width = params.size()
@@ -236,8 +241,11 @@ class DiscMixLogistic(Distribution):
         l = params.view(batch_size, 3, 3 * n_mix, height, width)
 
         self.logits = soft_clamp5(l[:, :, :n_mix, :, :])
-        self.mu = l[:, :, n_mix:2 * n_mix, :, :]
-        # self.mean = soft_clamp5(self.mean)
+
+        # fun fact: mu blows up late in trainning if you dont clamp it. 
+        # Maybe it is trying to push the mus to more and more extreme values  
+        # when you are trying to reconstruct the pure white/black?
+        self.mu = torch.clamp(l[:, :, n_mix:2 * n_mix, :, :], -5, 5) 
 
         log_scales = l[:, :, 2 * n_mix:3 * n_mix, :, :]
         log_scales = torch.clamp(log_scales, min=-7.0)
@@ -275,48 +283,115 @@ class DiscMixLogistic(Distribution):
         cdf_min = torch.sigmoid(min_in)
 
         log_pz = cdf_plus - cdf_min  # prob (|x-z| <= 1./255) for each subpixel for each part of  mixture
-        log_pz = torch.log(torch.clip(log_pz, min=1e-12))
+        
+        # if torch.isnan(log_pz).any() or torch.isinf(log_pz).any():
+        #     raise ValueError('Found NaN as log_pz')
 
+        log_pz = torch.log(torch.clamp(log_pz, min=1e-10))
+
+        # if torch.isnan(log_pz).any() or torch.isinf(log_pz).any():
+        #     raise ValueError('Found NaN as log_pz')
+            
         # now we take into acount the clipping for the lower and upper parts
         log_cdf_plus = plus_in - torch.nn.functional.softplus(plus_in)
         log_inverse_cdf_min = - torch.nn.functional.softplus(min_in)
+        
+        # if torch.isnan(inverted_scale).any() or torch.isinf(inverted_scale).any():
+        #     print()
+        #     print("z min and max", torch.min(z),torch.max(z) )
+        #     print("mu min and max", torch.min(self.mu),torch.max(self.mu) )
+        #     print("log_scales min and max", torch.min(self.log_scales),torch.max(self.log_scales) )
+        #     print("inverted_scale min and max", torch.min(inverted_scale),torch.max(inverted_scale) )
+        #     print("centered_z min and max", torch.min(centered_z),torch.max(centered_z) )
+        #     raise ValueError('Found NaN as inverted_scale')
+        # if torch.isnan(plus_in).any() or torch.isinf(plus_in).any():
+        #     print()
+        #     print("z min and max", torch.min(z),torch.max(z) )
+        #     print("mu min and max", torch.min(self.mu),torch.max(self.mu) )
+        #     print("log_scales min and max", torch.min(self.log_scales),torch.max(self.log_scales) )
+        #     print("inverted_scale min and max", torch.min(inverted_scale),torch.max(inverted_scale) )
+        #     print("centered_z min and max", torch.min(centered_z),torch.max(centered_z) )
+
+        #     raise ValueError('Found NaN as plus_in')
+
+        # if torch.isnan(min_in).any() or torch.isinf(min_in).any() :
+        #     print()
+        #     print("z min and max", torch.min(z),torch.max(z) )
+        #     print("mu min and max", torch.min(self.mu),torch.max(self.mu) )
+        #     print("log_scales min and max", torch.min(self.log_scales),torch.max(self.log_scales) )
+        #     print("inverted_scale min and max", torch.min(inverted_scale),torch.max(inverted_scale) )
+        #     print("centered_z min and max", torch.min(centered_z),torch.max(centered_z) )
+
+        #     raise ValueError('Found NaN as min_in')   
+        # if torch.isnan(log_cdf_plus).any() or torch.isinf(log_cdf_plus).any():
+        #     print()
+        #     print("z min and max", torch.min(z),torch.max(z) )
+        #     print("mu min and max", torch.min(self.mu),torch.max(self.mu) )
+        #     print("log_scales min and max", torch.min(self.log_scales),torch.max(self.log_scales) )
+        #     print("inverted_scale min and max", torch.min(inverted_scale),torch.max(inverted_scale) )
+        #     print("centered_z min and max", torch.min(centered_z),torch.max(centered_z) )
+
+        #     raise ValueError('Found NaN as log_cdf_plus')
+        # if torch.isnan(log_inverse_cdf_min).any() or torch.isinf(log_inverse_cdf_min).any():
+        #     print()
+        #     print("z min and max", torch.min(z),torch.max(z) )
+        #     print("mu min and max", torch.min(self.mu),torch.max(self.mu) )
+        #     print("log_scales min and max", torch.min(self.log_scales),torch.max(self.log_scales) )
+        #     print("inverted_scale min and max", torch.min(inverted_scale),torch.max(inverted_scale) )
+        #     print("centered_z min and max", torch.min(centered_z),torch.max(centered_z) )
+
+        #     raise ValueError('Found NaN as log_inverse_cdf_min')   
+
         log_pz = torch.where(
             z < 5e-4, log_cdf_plus,
-            torch.where(z > 1 - 5e-4,
+            torch.where(z > 1 - 5e-3,
                         log_inverse_cdf_min,
                         log_pz)
         )
 
         z = z.squeeze(2)
 
-        m_logits, _ = torch.max(self.logits, dim=2, keepdim=True)
-        log_probs = torch.log(
-            torch.sum(
-                torch.exp(self.logits - m_logits),
-                dim=2, keepdim=True))
+        log_probs = logits_to_log_probs(self.logits)
 
-        log_probs = self.logits - m_logits - log_probs
+        # if torch.isnan(log_probs).any() or torch.isinf(log_probs).any():
+        #     raise ValueError('Found NaN as log_probs')
+
+        # if torch.isnan(log_pz).any() or torch.isinf(log_pz).any():
+        #     print()
+        #     print("z min and max", torch.min(z),torch.max(z) )
+        #     print("mu min and max", torch.min(self.mu),torch.max(self.mu) )
+        #     print("log_scales min and max", torch.min(self.log_scales),torch.max(self.log_scales) )
+        #     print("inverted_scale min and max", torch.min(inverted_scale),torch.max(inverted_scale) )
+        #     print("centered_z min and max", torch.min(centered_z),torch.max(centered_z) )
+
+        #     raise ValueError('Found NaN as log_pz')
 
         # In the next line we have, in index notation:
-        # res_b,c,k,h,w =  log(p(|cliiped x-z| <= 1./255) | selected = k) + log(p(selected = k))
+        # res_b,c,k,h,w =  log(p(|clipped x-z| <= 1./255) | selected = k) + log(p(selected = k))
         res = log_pz + log_probs
 
         max_l, _ = torch.max(res, dim=2, keepdim=True)
         res = max_l.squeeze(2) + torch.log(torch.sum(torch.exp(res - max_l), dim=2))
         # now we have, in index notation:
-        # res_b,c,h,w =  log(sum_k p(|cliiped x-z| <= 1./255) and selected = k)
-        # = log(p(|cliiped x-z| <= 1./255). exactly what we wanted
+        # res_b,c,h,w =  log(sum_k p(|clipped x-z| <= 1./255) and selected = k)
+        # = log(p(|clipped x-z| <= 1./255). exactly what we wanted
+        
+        # if torch.isnan(res).any() or torch.isinf(res).any():
+        #     print()
+        #     print("z min and max", torch.min(z),torch.max(z) )
+        #     print("mu min and max", torch.min(self.mu),torch.max(self.mu) )
+        #     print("log_scales min and max", torch.min(self.log_scales),torch.max(self.log_scales) )
+        #     print("inverted_scale min and max", torch.min(inverted_scale),torch.max(inverted_scale) )
+        #     print("centered_z min and max", torch.min(centered_z),torch.max(centered_z) )
+        #     print("res min and max", torch.min(res),torch.max(res) )
+
+        #     raise ValueError('Found NaN as res')
+        
         return res
 
     def mean(self):
-        m_logits, _ = torch.max(self.logits, dim=2, keepdim=True)
-        logit_probs = torch.log(
-            torch.sum(
-                torch.exp(self.logits - m_logits),
-                dim=2, keepdim=True))
-
-        logit_probs = self.logits - m_logits - logit_probs
-        probs = torch.exp(logit_probs)
+        log_probs = logits_to_log_probs(self.logits)
+        probs = torch.exp(log_probs)
         res = self.mu * probs
         res = torch.sum(res, dim=2)
 
@@ -325,14 +400,10 @@ class DiscMixLogistic(Distribution):
         return res
 
     def most_likely_value(self):
-        m_logits, _ = torch.max(self.logits, dim=2, keepdim=True)
-        logit_probs = torch.log(
-            torch.sum(
-                torch.exp(self.logits - m_logits),
-                dim=2, keepdim=True))
-
-        most_likely_mix = torch.argmax(self.logits - m_logits - logit_probs, dim=2, keepdim=True)
-
+        # technically arent getting the most_likely_value but
+        # the most_likely_value from the most likely mix which is not exactly the same 
+        log_probs = logits_to_log_probs(self.logits)
+        most_likely_mix = torch.argmax(log_probs, dim=2, keepdim=True)
         x = torch.gather(self.mu, 2, most_likely_mix)
         x = x.squeeze(2)
 
@@ -343,3 +414,5 @@ class DiscMixLogistic(Distribution):
     @classmethod
     def params_per_subpixel(cls, *args, **kwargs):
         return (DiscLogistic.params_per_subpixel() + 1) * args[0]
+
+

@@ -1,0 +1,24 @@
+channel_towers: 32
+number_of_scales: 4
+initial_splits_per_scale: 1
+latent_size: 10
+input_dimension: 64
+num_flows: 0
+num_blocks_prepost: 1
+num_cells_per_block_prepost: 2
+cells_per_split_enc: 2
+cells_per_input_dec: 2
+channel_multiplier : 2
+exponential_scaling: 1
+sampling_method: logistic_mixture
+n_mix: 10
+fixed_flows: True
+training_parameters:
+  learning_rate: 0.01
+  regularization_constant: 0.05
+  kl_constant: 1
+  warmup_epochs: 60
+  batch_size: 32 #16
+  write_reconstruction: False
+  epochs_per_checkpoint: 2
+  epochs: 400

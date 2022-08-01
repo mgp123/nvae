@@ -22,6 +22,8 @@ class SkipCellDown(nn.Module):
         # NVAE slice the first row, column or both in sucesive convolutions
         # what's the point of that?
 
+        # couldn't we simply use a conv2d in_channels -> out_channels with stride 2?
+
         conv1 = self.conv_1(y)
         conv2 = self.conv_2(y)
         conv3 = self.conv_3(y)

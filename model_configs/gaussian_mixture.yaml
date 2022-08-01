@@ -1,7 +1,7 @@
-channel_towers: 64
-number_of_scales: 4
+channel_towers: 32
+number_of_scales: 3
 initial_splits_per_scale: 1
-latent_size: 3
+latent_size: 2
 input_dimension: 64
 num_flows: 0
 num_blocks_prepost: 1
@@ -11,4 +11,4 @@ cells_per_input_dec: 2
 channel_multiplier : 2
 exponential_scaling: 1
 sampling_method: gaussian_mixture
-n_mix: 2
+n_mix: 3

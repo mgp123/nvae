@@ -7,10 +7,12 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # This regularization does the following for every kernel:
 #   - b1 = Wt*W*b_0 and approximates eigen value with ||b1|| / ||b0||
 
-def regularization_conv2d(layer, coefficient=1.):
-    # it's too slow
+def regularization_conv2d(layer, coefficient=0.01):
     return 0
+    s = torch.norm(layer.weight,dim=[2,3])
+    return torch.sum(s)* coefficient
 
+    # it's too slow
     kernels = torch.flatten(layer.weight, end_dim=1)
     sim_kernels = torch.bmm(kernels.permute(0, 2, 1), kernels)
     n = sim_kernels.shape[-1]

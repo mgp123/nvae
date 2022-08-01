@@ -1,4 +1,5 @@
 from tkinter import X
+from typing import List, Union
 from torch import nn
 import torch
 from torch.cuda.amp import autocast
@@ -74,7 +75,7 @@ class Autoencoder(nn.Module):
             num_flows,
             exponential_scaling=exponential_scaling,
             min_splits=min_splits,
-            fixed_flows=fixed_flows and num_flows > 0
+            fixed_flows=fixed_flows
         )
 
         self.f_channels = channels_towers_inside * (channel_multiplier ** (number_of_scales - 1))
@@ -134,6 +135,10 @@ class Autoencoder(nn.Module):
         distribution_params = self.to_distribution_conv(
             self.postprocess(residual_dec)
         )
+
+        # if torch.isnan(distribution_params).any() or torch.isinf(distribution_params).any():
+        #     raise ValueError('Found NaN as distribution_params')
+
         x_distribution = Distribution.construct_from_params(
             self.sampling_method,
             distribution_params
@@ -141,11 +146,16 @@ class Autoencoder(nn.Module):
 
         return x_distribution, kl_losses
 
-    def sample(self, n, t=1, final_distribution_sampling="mean"):
+    def sample(self, n:int, t:Union[List[float], float]=1.0, final_distribution_sampling="mean"):
+        ts = t
+        
+        if isinstance(t, float) or isinstance(t, int):
+            ts = [t]*self.decoder_tower.n_inputs
+
         residual_dec = self.decoder_constant.expand((n, -1, -1, -1))
         for i in range(self.decoder_tower.n_inputs):
             # note that the mixing for i == 0 behaves different
-            residual_dec = self.mixer.decoder_only_mix(residual_dec, i, t=t)
+            residual_dec = self.mixer.decoder_only_mix(residual_dec, i, t=ts[i])
             residual_dec = self.decoder_tower(residual_dec, i)
 
         distribution_params = self.to_distribution_conv(
@@ -158,6 +168,7 @@ class Autoencoder(nn.Module):
             )
         
         x = x_distribution.get(final_distribution_sampling)
+
         x = torch.clamp(x, 0, 1.)
 
         return x

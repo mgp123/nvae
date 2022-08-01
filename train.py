@@ -1,18 +1,24 @@
+import sys
 import torch
 from tqdm import tqdm
 from os.path import exists
 from data_loaders import get_data_loaders
 from kl_scheduler import KLScheduler
-from model_from_config import get_model
+from model_from_config import get_archfile_from_checkpoint, get_model, get_training_params
 from model.utils import device
 import torchvision
 from torch.utils.tensorboard import SummaryWriter
 
 
 def train():
-    model_code_name = "gaussian_mixture"
-    weights_file = model_code_name + ".checkpoint"
-    config_file = "model_configs/" + model_code_name + ".yaml"
+    model_code_name = "logistic_mixture10latent"
+    model_code_name = sys.argv[1]
+    checkpoint_file = "saved_weights/" + model_code_name + ".checkpoint"
+    config_file = get_archfile_from_checkpoint(checkpoint_file)
+
+    if config_file is None:
+        config_file = "model_configs/" + model_code_name + ".yaml"
+
     model = get_model(config_file)
 
     learning_rate = 1e-2
@@ -22,15 +28,30 @@ def train():
     warmup_epochs = 30
     epochs = 100
     learning_rate_min = 1e-5
-    batch_size = 20  # prev was 32
+    batch_size = 40  # prev was 20  # prev was 32
 
     write_loss_every = 320 * 3 * 3 * 2
     write_loss_every += (-write_loss_every) % batch_size  # to make sure the mod works
-    write_images_every = 4378 * 16 * 2  # idem
+    write_images_every = 4375 * 16 * 2  # idem
     write_images_every += (-write_images_every) % batch_size
-    checkpoint_every_images = 4378 * 16  # idem
-    checkpoint_every_images += (-checkpoint_every_images) % batch_size
-    checkpoint_every_epoch = 5
+    write_reconstruction = True
+    images_per_checkpoint = 4378 * 16 * 1000  # idem
+    images_per_checkpoint += (-images_per_checkpoint) % batch_size
+    images_per_checkpoint = None
+
+    epochs_per_checkpoint = 2
+
+    training_parameters = get_training_params(config_file, checkpoint_file)
+    learning_rate = training_parameters.get("learning_rate")
+    regularization_constant = training_parameters.get("regularization_constant", )
+    kl_constant = training_parameters.get("kl_constant")
+    warmup_epochs = training_parameters.get("warmup_epochs")
+    epochs = training_parameters.get("epochs")
+    batch_size = training_parameters.get("batch_size")
+    write_reconstruction = training_parameters.get("write_reconstruction")
+    images_per_checkpoint = training_parameters.get("images_per_checkpoint")
+    epochs_per_checkpoint = training_parameters.get("epochs_per_checkpoint")
+    gradient_clipping = training_parameters.get("gradient_clipping")
 
     data_loader_train, data_loader_test = get_data_loaders(batch_size)
 
@@ -45,18 +66,21 @@ def train():
         epochs - warmup_epochs - 1,
         eta_min=learning_rate_min)
 
+    # torch.nn.utils.remove_weight_norm(model.mixer.encoder_mixer[0].model[1])
+
     seen_images = 0
 
     writer = None
     initial_epoch = 0
     initial_seen_images = 0
 
-    if exists(weights_file):
-        save = torch.load(weights_file)
+    if exists(checkpoint_file):
+        save = torch.load(checkpoint_file)
         initial_epoch = save["epoch"]
-        epochs = save["total_epochs"]
+        # epochs = save["total_epochs"]
         model = model.to("cuda:0")
-        model.load_state_dict(save["state_dict"])
+        model.load_state_dict(save["state_dict"], strict=False)
+
         optimizer.load_state_dict(save["optimizer"])
         optimizer_scheduler.load_state_dict(save["optimizer_scheduler"])
 
@@ -64,16 +88,51 @@ def train():
         initial_seen_images = seen_images
         writer = SummaryWriter(log_dir=save["log_dir"])
 
-        print("Loaded checkpoint after seeing " + str(seen_images) + " images")
+        print("Loaded checkpoint after " + str(initial_epoch) + " epochs")
 
     else:
-        writer = SummaryWriter()
+        # TODO, REMOVE THIS. ONLY FOR TRANSFER LEARNING
+        # BUG HERE!! OPTIMIZER DOESNT SEE NEW PARAMS
+        # checkpoint_file_old = "saved_weights/big_logistic_mixture20latent.checkpoint"
+        # config_file_old = get_archfile_from_checkpoint(checkpoint_file_old)
+
+        # model_old = get_model(config_file_old)
+        # save_old = torch.load(checkpoint_file_old)
+        # model_old.load_state_dict(save_old["state_dict"], strict=False)
+
+        # temp = model.mixer.normal_flow_block
+        # model.mixer = model_old.mixer
+        # model.mixer.normal_flow_block = temp
+        # model.encoder_tower = model_old.encoder_tower
+        # model.decoder_tower = model_old.decoder_tower
+
+        # # for p in model.mixer.parameters():
+        # #     p.requires_grad = False 
+        # # for p in model.encoder_tower.parameters():
+        # #     p.requires_grad = False 
+        # # for p in model.decoder_tower.parameters():
+        # #     p.requires_grad = False 
+
+        # del model_old
+        # del save_old
+
+
+        # ---------------------
+
+
+
+        writer = SummaryWriter(log_dir="runs/" + model_code_name)
         model = model.to("cuda:0")
+
+
+
 
     kl_scheduler = KLScheduler(
         kl_warm_steps=warmup_epochs,
         model=model,
         current_step=initial_epoch)
+
+    last_loss = 0 # only used to check for nans before checkpoints 
 
     for epoch in tqdm(range(initial_epoch, epochs), initial=initial_epoch, total=epochs, desc="epoch"):
 
@@ -96,13 +155,15 @@ def train():
                 loss += regularization_constant * model.regularization_loss()
 
             loss.backward()
-            # torch.nn.utils.clip_grad_norm_(model.parameters(), 200)
+            if gradient_clipping is not None:
+              torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clipping)
 
             optimizer.step()
 
             seen_images += batch_size
+            last_loss = loss.item()
 
-            if (seen_images - initial_seen_images) % write_loss_every == 0:
+            if (write_loss_every is not None) and (seen_images - initial_seen_images) % write_loss_every == 0:
                 if torch.isnan(loss).any():
                     raise ValueError('Found NaN during training')
 
@@ -115,27 +176,17 @@ def train():
                 for i in range(kl_by_split.shape[0]):
                     writer.add_scalar("kl_loss_" + str(i) + "/iter", kl_by_split[i].item(), seen_images)
 
-            if (seen_images - initial_seen_images) % write_images_every == 0:
+            if write_reconstruction and (write_images_every is not None) and (seen_images - initial_seen_images) % write_images_every == 0:
                 with torch.no_grad():
                     # model = model.eval()
 
-                    img = model.sample(2)
-                    img_grid = torchvision.utils.make_grid(img)
-                    writer.add_image("generated image " + str(seen_images), img_grid)
-
-                    # x = torch.clamp(x_distribution.mu, 0, 1.)
-                    # x = x / 2. + 0.5
-
-                    # img = torchvision.utils.make_grid(images)
-                    # writer.add_image("original image "  + str(seen_images) , img)
-
                     x = torch.clamp(x_distribution.sample(), 0, 1.)
                     img = torchvision.utils.make_grid(x)
-                    writer.add_image("reconstructed image " + str(seen_images), img)
+                    writer.add_image("reconstructed image", img, global_step=seen_images)
 
                     # model = model.train()
 
-            if (seen_images - initial_seen_images) % checkpoint_every_images == 0:
+            if (images_per_checkpoint is not None)  and (seen_images - initial_seen_images) % images_per_checkpoint == 0:
                 if torch.isnan(loss).any():
                     raise ValueError('Found NaN during training')
 
@@ -145,28 +196,48 @@ def train():
                                   optimizer,
                                   optimizer_scheduler,
                                   seen_images,
-                                  weights_file,
-                                  writer)
+                                  checkpoint_file,
+                                  writer,
+                                  config_file)
 
         if epoch > warmup_epochs:
             optimizer_scheduler.step()
-        if epoch % checkpoint_every_epoch == 0:
+        if epoch % epochs_per_checkpoint == 0:
+
+            if last_loss != last_loss:
+                raise ValueError('Found NaN during training')
+
+            img = None
+            with torch.no_grad():
+                img = model.sample(2)
+                
+            img_grid = torchvision.utils.make_grid(img)
+            writer.add_image("generated image", img_grid, global_step=seen_images)
+
             create_checkpoint(epoch + 1,
                               epochs,
                               model,
                               optimizer,
                               optimizer_scheduler,
                               seen_images,
-                              weights_file,
-                              writer)
+                              checkpoint_file,
+                              writer,
+                              config_file)
         kl_scheduler.step()
 
     writer.flush()
     writer.close()
-    torch.save(model.state_dict(), "final_result.model")
+    torch.save(
+        {"state_dict": model.state_dict(),
+        "model_arch": config_file,
+        }, 
+        
+        
+        "saved_weights/final_result_" + model_code_name + ".model")
 
 
-def create_checkpoint(epoch, epochs, model, optimizer, optimizer_scheduler, seen_images, weights_file, writer):
+def create_checkpoint(epoch, epochs, model, optimizer, optimizer_scheduler, seen_images, checkpoint_file, writer,
+                      config_file):
     torch.save(
         {"epoch": epoch,
          "state_dict": model.state_dict(),
@@ -174,11 +245,11 @@ def create_checkpoint(epoch, epochs, model, optimizer, optimizer_scheduler, seen
          "optimizer_scheduler": optimizer_scheduler.state_dict(),
          "seen_images": seen_images,
          "log_dir": writer.log_dir,
-         "total_epochs": epochs
-
+         "total_epochs": epochs,
+         "model_arch": config_file,
          },
 
-        weights_file)
+        checkpoint_file)
 
 
 if __name__ == "__main__":
