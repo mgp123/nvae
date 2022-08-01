@@ -4,3 +4,4 @@ __pycache__
 *.model
 *.checkpoint
 runs
+local

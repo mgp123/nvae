@@ -1,6 +1,6 @@
 # NVAE Implementation
 <p align="center">
-    <img src="images/cherry_0.4_big_logistic_mixture20latentnoflows.png" width=350>
+    <img src="images/preview.png" width=700>
 </p>
 
 This is a close enough implementation of *NVAE. A Deep Hierarchical Variational Autoencoder*.
@@ -17,8 +17,16 @@ To train a new model you simply need to do:
 
 with ```<architecure name>``` being the name of one of the ```.yaml``` files in ```model_configs```
 
+For example, if you want to use ```big_logistic_mixture20latentnoflows.yaml``` the command should be:
+
+    python3 train.py big_logistic_mixture20latentnoflows
+
+
 This files contains all the architecture hyperparameters as well as training parameters such as batch size or number of epochs between checkpoints.
 You can also resume training from the last checkpoint using the same command. 
 The script automatically finds the last checkpoint before starting trainning.
 
+
 ## Creating a model configuration
+On top of using one of the provided configurations you may also create your own configuration.
+
