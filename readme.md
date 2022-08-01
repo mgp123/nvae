@@ -66,15 +66,39 @@ Here are some cherry-picked samples from the ```big_logistic_mixture20latentnofl
 On top of using one of the provided configurations you may also create your own configuration.
 
 
+## Exploring the latent variables
+
+A fast and loose method to check how exactly are the different latent variables affecting the result is to change one 
+of the latent variables and keep the rest fixed. Here we jamm the gaussian noise that is then multiplied to get the
+specific gaussian  via the re parametrization trick while keeping the noise for the other variables fixed.
+It's best to use noise with high variance to make the effects more noticeable.
+Here ```latent_space_exploration.py``` does this for each of the latent variables
+The command is similar to ```sample.py```:
+
+    python3 latent_space_exploration.py <model params> <temperature> <optional iterations>
+
+Here is an example output:
+
+<p align="center">
+    <img src="images/latent_space_exploration_big_logistic_mixture20latentnoflows.png" width=466.7>
+</p>
+
+
+You can also manually set a couple of parameters involved by modifing the associated code.
+
+There's a function included in the script that allows checking the effect inside the latent variable itself by 
+modifying the spatial components of it. It's not a good idea to use it as the spatial dimension are usually 
+relatively big (16x16, or 8x8 for instance) so they end up being pretty large.
+
 ## Details behind the NVAE architecture
 In short, it is a *comb-like* structure with the encoder and decoder going in opposite directions.\
 Each level of the decoder gets as input a sort of combination of the next encoder level and the previous decoder level.
-As you go through the encoder tower you double the channels and half the spatial dimensions. The decoder tower behaves in the opposite way
+As you go through the encoder tower you double the channels and halve the spatial dimensions. The decoder tower behaves in the opposite way
 
 
 
 <p align="center">
-    <img src="images/diagram.svg" width=700>
+    <img src="images/diagram.svg" width=400>
 </p>
 
 I talk a  bit about the NVAE structure [here](https://mgp123.github.io/2022/04/20/nvae/). 

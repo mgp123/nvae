@@ -38,8 +38,10 @@ class Autoencoder(nn.Module):
         self.number_of_scales = number_of_scales
         self.exponential_scaling = exponential_scaling
         self.min_splits = min_splits
+        self.input_dimension = input_dimension
+        self.num_blocks_prepost = num_blocks_prepost
 
-        channels_towers_inside = channel_towers * (channel_multiplier ** (num_blocks_prepost))
+        channels_towers_inside = channel_towers * (channel_multiplier ** num_blocks_prepost)
 
         self.initial_transform = nn.utils.weight_norm(
             nn.Conv2d(
