@@ -230,9 +230,6 @@ class DiscLogistic(Distribution):
 class DiscMixLogistic(Distribution):
 
     def __init__(self, params):
-        # if torch.isnan(params).any() or torch.isinf(params).any():
-        #     raise ValueError('Found NaN as parameters of distribution')
-
         # assumes c % 9 == 0
         super().__init__()
         batch_size, c, height, width = params.size()
@@ -284,63 +281,12 @@ class DiscMixLogistic(Distribution):
 
         log_pz = cdf_plus - cdf_min  # prob (|x-z| <= 1./255) for each subpixel for each part of  mixture
         
-        # if torch.isnan(log_pz).any() or torch.isinf(log_pz).any():
-        #     raise ValueError('Found NaN as log_pz')
-
         log_pz = torch.log(torch.clamp(log_pz, min=1e-10))
 
-        # if torch.isnan(log_pz).any() or torch.isinf(log_pz).any():
-        #     raise ValueError('Found NaN as log_pz')
-            
         # now we take into acount the clipping for the lower and upper parts
         log_cdf_plus = plus_in - torch.nn.functional.softplus(plus_in)
         log_inverse_cdf_min = - torch.nn.functional.softplus(min_in)
         
-        # if torch.isnan(inverted_scale).any() or torch.isinf(inverted_scale).any():
-        #     print()
-        #     print("z min and max", torch.min(z),torch.max(z) )
-        #     print("mu min and max", torch.min(self.mu),torch.max(self.mu) )
-        #     print("log_scales min and max", torch.min(self.log_scales),torch.max(self.log_scales) )
-        #     print("inverted_scale min and max", torch.min(inverted_scale),torch.max(inverted_scale) )
-        #     print("centered_z min and max", torch.min(centered_z),torch.max(centered_z) )
-        #     raise ValueError('Found NaN as inverted_scale')
-        # if torch.isnan(plus_in).any() or torch.isinf(plus_in).any():
-        #     print()
-        #     print("z min and max", torch.min(z),torch.max(z) )
-        #     print("mu min and max", torch.min(self.mu),torch.max(self.mu) )
-        #     print("log_scales min and max", torch.min(self.log_scales),torch.max(self.log_scales) )
-        #     print("inverted_scale min and max", torch.min(inverted_scale),torch.max(inverted_scale) )
-        #     print("centered_z min and max", torch.min(centered_z),torch.max(centered_z) )
-
-        #     raise ValueError('Found NaN as plus_in')
-
-        # if torch.isnan(min_in).any() or torch.isinf(min_in).any() :
-        #     print()
-        #     print("z min and max", torch.min(z),torch.max(z) )
-        #     print("mu min and max", torch.min(self.mu),torch.max(self.mu) )
-        #     print("log_scales min and max", torch.min(self.log_scales),torch.max(self.log_scales) )
-        #     print("inverted_scale min and max", torch.min(inverted_scale),torch.max(inverted_scale) )
-        #     print("centered_z min and max", torch.min(centered_z),torch.max(centered_z) )
-
-        #     raise ValueError('Found NaN as min_in')   
-        # if torch.isnan(log_cdf_plus).any() or torch.isinf(log_cdf_plus).any():
-        #     print()
-        #     print("z min and max", torch.min(z),torch.max(z) )
-        #     print("mu min and max", torch.min(self.mu),torch.max(self.mu) )
-        #     print("log_scales min and max", torch.min(self.log_scales),torch.max(self.log_scales) )
-        #     print("inverted_scale min and max", torch.min(inverted_scale),torch.max(inverted_scale) )
-        #     print("centered_z min and max", torch.min(centered_z),torch.max(centered_z) )
-
-        #     raise ValueError('Found NaN as log_cdf_plus')
-        # if torch.isnan(log_inverse_cdf_min).any() or torch.isinf(log_inverse_cdf_min).any():
-        #     print()
-        #     print("z min and max", torch.min(z),torch.max(z) )
-        #     print("mu min and max", torch.min(self.mu),torch.max(self.mu) )
-        #     print("log_scales min and max", torch.min(self.log_scales),torch.max(self.log_scales) )
-        #     print("inverted_scale min and max", torch.min(inverted_scale),torch.max(inverted_scale) )
-        #     print("centered_z min and max", torch.min(centered_z),torch.max(centered_z) )
-
-        #     raise ValueError('Found NaN as log_inverse_cdf_min')   
 
         log_pz = torch.where(
             z < 5e-4, log_cdf_plus,
@@ -353,18 +299,6 @@ class DiscMixLogistic(Distribution):
 
         log_probs = logits_to_log_probs(self.logits)
 
-        # if torch.isnan(log_probs).any() or torch.isinf(log_probs).any():
-        #     raise ValueError('Found NaN as log_probs')
-
-        # if torch.isnan(log_pz).any() or torch.isinf(log_pz).any():
-        #     print()
-        #     print("z min and max", torch.min(z),torch.max(z) )
-        #     print("mu min and max", torch.min(self.mu),torch.max(self.mu) )
-        #     print("log_scales min and max", torch.min(self.log_scales),torch.max(self.log_scales) )
-        #     print("inverted_scale min and max", torch.min(inverted_scale),torch.max(inverted_scale) )
-        #     print("centered_z min and max", torch.min(centered_z),torch.max(centered_z) )
-
-        #     raise ValueError('Found NaN as log_pz')
 
         # In the next line we have, in index notation:
         # res_b,c,k,h,w =  log(p(|clipped x-z| <= 1./255) | selected = k) + log(p(selected = k))
@@ -376,17 +310,7 @@ class DiscMixLogistic(Distribution):
         # res_b,c,h,w =  log(sum_k p(|clipped x-z| <= 1./255) and selected = k)
         # = log(p(|clipped x-z| <= 1./255). exactly what we wanted
         
-        # if torch.isnan(res).any() or torch.isinf(res).any():
-        #     print()
-        #     print("z min and max", torch.min(z),torch.max(z) )
-        #     print("mu min and max", torch.min(self.mu),torch.max(self.mu) )
-        #     print("log_scales min and max", torch.min(self.log_scales),torch.max(self.log_scales) )
-        #     print("inverted_scale min and max", torch.min(inverted_scale),torch.max(inverted_scale) )
-        #     print("centered_z min and max", torch.min(centered_z),torch.max(centered_z) )
-        #     print("res min and max", torch.min(res),torch.max(res) )
 
-        #     raise ValueError('Found NaN as res')
-        
         return res
 
     def mean(self):

@@ -51,7 +51,6 @@ class SkipCell(nn.Module):
             self.model.add_module("same shape", nn.Identity())
         elif stride == 2:
             self.model.add_module("skip down", SkipCellDown(in_channels, out_channels))
-            # raise NotImplementedError
         elif stride == -1:
             self.model.add_module("skip up", SkipCellUp(in_channels, out_channels))
         else:

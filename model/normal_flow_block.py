@@ -23,16 +23,8 @@ class ARConv2d(nn.Conv2d):
         if not (groups == 1 or groups == in_channels):
             raise ValueError
 
-        # self.in_channels = in_channels
-        # self.out_channels = out_channels
-        # self.kernel_size = kernel_size
-        # self.padding = padding
-        # self.groups = groups
 
         kernels_shape = out_channels, in_channels//groups, kernel_size,kernel_size
-
-        # self.kernels = nn.Parameter(torch.randn(kernels_shape))
-        # self.bias = nn.Parameter(torch.randn((out_channels)))
 
         self.mask = torch.ones(kernels_shape)
 

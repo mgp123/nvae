@@ -91,36 +91,6 @@ def train():
         print("Loaded checkpoint after " + str(initial_epoch) + " epochs")
 
     else:
-        # TODO, REMOVE THIS. ONLY FOR TRANSFER LEARNING
-        # BUG HERE!! OPTIMIZER DOESNT SEE NEW PARAMS
-        # checkpoint_file_old = "saved_weights/big_logistic_mixture20latent.checkpoint"
-        # config_file_old = get_archfile_from_checkpoint(checkpoint_file_old)
-
-        # model_old = get_model(config_file_old)
-        # save_old = torch.load(checkpoint_file_old)
-        # model_old.load_state_dict(save_old["state_dict"], strict=False)
-
-        # temp = model.mixer.normal_flow_block
-        # model.mixer = model_old.mixer
-        # model.mixer.normal_flow_block = temp
-        # model.encoder_tower = model_old.encoder_tower
-        # model.decoder_tower = model_old.decoder_tower
-
-        # # for p in model.mixer.parameters():
-        # #     p.requires_grad = False 
-        # # for p in model.encoder_tower.parameters():
-        # #     p.requires_grad = False 
-        # # for p in model.decoder_tower.parameters():
-        # #     p.requires_grad = False 
-
-        # del model_old
-        # del save_old
-
-
-        # ---------------------
-
-
-
         writer = SummaryWriter(log_dir="runs/" + model_code_name)
         model = model.to("cuda:0")
 

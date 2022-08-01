@@ -42,7 +42,7 @@ class Autoencoder(nn.Module):
         channels_towers_inside = channel_towers * (channel_multiplier ** (num_blocks_prepost))
 
         self.initial_transform = nn.utils.weight_norm(
-                nn.Conv2d(
+            nn.Conv2d(
                 in_channels=3,
                 out_channels=channel_towers,
                 kernel_size=3,
@@ -107,12 +107,12 @@ class Autoencoder(nn.Module):
 
         self.to_distribution_conv = nn.Sequential(
             nn.ELU(),
-            nn.utils.weight_norm( 
+            nn.utils.weight_norm(
                 nn.Conv2d(
                     channel_towers,
                     d_parameters,
                     3, padding=1, bias=True
-                    )
+                )
             )
         )
 
@@ -136,21 +136,18 @@ class Autoencoder(nn.Module):
             self.postprocess(residual_dec)
         )
 
-        # if torch.isnan(distribution_params).any() or torch.isinf(distribution_params).any():
-        #     raise ValueError('Found NaN as distribution_params')
-
         x_distribution = Distribution.construct_from_params(
             self.sampling_method,
             distribution_params
-            )
+        )
 
         return x_distribution, kl_losses
 
-    def sample(self, n:int, t:Union[List[float], float]=1.0, final_distribution_sampling="mean"):
+    def sample(self, n: int, t: Union[List[float], float] = 1.0, final_distribution_sampling="mean"):
         ts = t
-        
+
         if isinstance(t, float) or isinstance(t, int):
-            ts = [t]*self.decoder_tower.n_inputs
+            ts = [t] * self.decoder_tower.n_inputs
 
         residual_dec = self.decoder_constant.expand((n, -1, -1, -1))
         for i in range(self.decoder_tower.n_inputs):
@@ -165,8 +162,8 @@ class Autoencoder(nn.Module):
         x_distribution = Distribution.construct_from_params(
             self.sampling_method,
             distribution_params
-            )
-        
+        )
+
         x = x_distribution.get(final_distribution_sampling)
 
         x = torch.clamp(x, 0, 1.)
@@ -187,7 +184,7 @@ class Autoencoder(nn.Module):
         x_distribution = Distribution.construct_from_params(
             self.sampling_method,
             distribution_params
-            )        
+        )
         x = x_distribution.get(final_distribution_sampling)
         x = torch.clamp(x, 0, 1.)
 

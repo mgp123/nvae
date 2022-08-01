@@ -16,14 +16,6 @@ class MixerCellEncoder(nn.Module):
             nn.Conv2d(in_channels=in_channels2, out_channels=in_channels1, kernel_size=1)
         )
     def forward(self, x1, x2):
-        # y = self.model(x2)
-        # if torch.isnan(y).any() or torch.isinf(y).any():
-        #     print("second part of mix min and max", torch.min(y),torch.max(y) )
-        #     raise ValueError('Found NaN as second part of mix')
-        # y = x1 + y
-        # if torch.isnan(y).any() or torch.isinf(y).any():
-        #     print("sum of mix parts min and max", torch.min(y),torch.max(y) )
-        #     raise ValueError('Found NaN as mix')
         return x1 + self.model(x2)
 
 
@@ -54,14 +46,7 @@ class DummyMixer(nn.Module):
 
     def forward(self, x1, x2):
         y = self.model(x1)
-        # if torch.isnan(y).any() or torch.isinf(y).any():
-        #     print("dummy mix min and max", torch.min(y),torch.max(y) )
-        #     raise ValueError('Found NaN as dummy mix')
-
         return y
-
-        return torch.zeros_like(y) #y
-
 
 class Mixer(nn.Module):
     def __init__(self,
@@ -79,21 +64,6 @@ class Mixer(nn.Module):
 
         self.latent_size = latent_size
         self.fixed_flows = fixed_flows # or n_flows == 0
-        # TODO check if should remove
-        # self.init_encoder = \
-        #     nn.Sequential(
-        #         nn.ELU(),
-        #         nn.utils.weight_norm(
-        #             nn.Conv2d(
-        #             in_channels=channels_towers * (channel_multiplier ** (number_of_scales - 1)),
-        #             out_channels=channels_towers * (channel_multiplier ** (number_of_scales - 1)),
-        #             kernel_size=(1, 1),
-        #             )
-        #         ),
-        #         nn.ELU(),
-
-        #     )
-        self.show_temp =False
         encoder_sampler = []
         decoder_sampler = []
         encoder_mixer = []
@@ -165,36 +135,8 @@ class Mixer(nn.Module):
         self.normal_flow_block = nn.ModuleList(normal_flow_block)
 
     def forward(self, enc_part, dec_part, i):
-        # if torch.isnan(enc_part).any() or torch.isinf(enc_part).any():
-        #     print("enc_part min and max", torch.min(enc_part),torch.max(enc_part) )
-        #     print("dec_part min and max", torch.min(dec_part),torch.max(dec_part) )
-        #     raise ValueError('Found NaN as enc_part')
-        # if torch.isnan(dec_part).any() or torch.isinf(dec_part).any():
-        #     print("enc_part min and max", torch.min(enc_part),torch.max(enc_part) )
-        #     print("dec_part min and max", torch.min(dec_part),torch.max(dec_part) )
-        #     raise ValueError('Found NaN as dec_part')
-
         m = self.encoder_mixer[i](enc_part, dec_part)
-
-        # if torch.isnan(m).any() or torch.isinf(m).any():
-        #     print()
-        #     print()
-        #     print("i = " , i)
-        #     print("enc_part min and max", torch.min(enc_part),torch.max(enc_part) )
-        #     print("dec_part min and max", torch.min(dec_part),torch.max(dec_part) )
-        #     print("m min and max", torch.min(m),torch.max(m) )
-
-        #     raise ValueError('Found NaN as m')
         latent = self.encoder_sampler[i](m)
-        # if torch.isnan(latent).any() or torch.isinf(latent).any():
-        #     print()
-        #     print()
-        #     print("enc_part min and max", torch.min(enc_part),torch.max(enc_part) )
-        #     print("dec_part min and max", torch.min(dec_part),torch.max(dec_part) )
-        #     print("m min and max", torch.min(m),torch.max(m) )
-        #     print("latent min and max", torch.min(latent),torch.max(latent) )
-
-        #     raise ValueError('Found NaN as latent')
 
         # the first latent variable of the encoder 
         # is going to try to imitate the standard normal distribution
@@ -211,7 +153,6 @@ class Mixer(nn.Module):
         z = distribution_enc.sample()
 
 
-        # kl_loss = torch.sum(kl_loss, dim=[1, 2, 3])
 
         kl_loss = None
         if self.fixed_flows:
@@ -223,26 +164,9 @@ class Mixer(nn.Module):
             log_dec = torch.sum(distribution_dec.log_p(z),dim=[1,2,3])
             kl_loss = log_enc - log_dec
 
-
-        # we divide the kl_loss by the amount of channels
-        # to make its contribution independent of the latent_size
-        # theoretically speaking we shouldnt do this but it seems to help to balance the kl loss
-        # kl_loss = kl_loss/self.latent_size
-
         y = self.decoder_mixer[i](dec_part, z)
 
-        # if torch.isnan(kl_loss).any() or torch.isinf(kl_loss).any():
-        #     print()
-        #     print()
-
-        #     print("i = ", i)
-
-        #     print("kl_loss min and max", torch.min(kl_loss),torch.max(kl_loss) )
-        #     print("distribution_enc mu min and max", torch.min(distribution_enc.mu),torch.max(distribution_enc.mu) )
-        #     print("distribution_dec mu min and max", torch.min(distribution_dec.mu),torch.max(distribution_dec.mu) )
-
-        #     raise ValueError('Found NaN as kl_loss')
-
+    
         return y, kl_loss
 
     def decoder_only_mix(self, dec_part, i, t=1):
@@ -255,9 +179,7 @@ class Mixer(nn.Module):
         
         distribution = Normal(latent,t=t)
         z = distribution.sample()
-        # if self.show_temp:
-        #     print(torch.mean(distribution.log_p(z),dim=[1,2,3]))
-        
+
         if self.fixed_flows:
             z = self.normal_flow_block[i](z, None)
 
