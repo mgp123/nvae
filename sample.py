@@ -5,55 +5,22 @@ from matplotlib import pyplot as plt
 import sys
 import torchvision
 
-# weights_file = "saved_weights/final_tiny.model"
-# config_file = "model_configs/tiny.yaml"
-
-# weights_file = "tiny_mixture.checkpoint"
-# weights_file = "saved_weights/final_tiny_mixture3.model"
-# config_file = "model_configs/tiny_mixture.yaml"
-
-# weights_file = "small_mixture.checkpoint"
-# config_file = "model_configs/small_mixture.yaml"
-
-# weights_file = "small_mixture2.checkpoint"
-# config_file = "model_configs/small_mixture2.yaml"
-
-weights_file = "gaussian_mixture.checkpoint"
-config_file = "model_configs/gaussian_mixture.yaml"
-
-weights_file = "gaussian_mixture.checkpoint"
-config_file = "model_configs/gaussian_mixture.yaml"
-
-if len(sys.argv) >= 3:
-    weights_file = sys.argv[2]  # "saved_weights/" + sys.argv[3]+".checkpoint"
-    tem = get_archfile_from_checkpoint(weights_file)
-    if tem is not None:
-        config_file = tem
+weights_file = sys.argv[1]
+config_file = get_archfile_from_checkpoint(weights_file)
+if config_file is None:
+    raise ValueError("config not found")
 
 model = get_model(config_file)
 load_state_from_file(model, weights_file)
 model = model.to("cuda:0")
 
 
-# print("fixed flows", model.mixer.fixed_flows)
-# model.mixer.fixed_flows = True
-
 def sample(n1=3, n2=3, batches=1, iterations=20):
     global model
 
     with torch.no_grad():
         # readjusting batchnorm
-        t = float(sys.argv[1])  # 0.45
-        # t = [t, t,0.3,0.1] # good combination for 0.3-0.45 temps
-        # t = [t, t,0.2,0.3] 
-        t = [t] * 10
-        t[4] = 0.4
-        t[5] = t[4]
-        t[6] = t[5]
-        # t[7] = 0.9
-        # t[8] = t[7]
-        # t[9] = t[8]
-
+        t = float(sys.argv[2])
         n = n1 * n2
 
         for _ in range(iterations):
@@ -73,4 +40,4 @@ def sample(n1=3, n2=3, batches=1, iterations=20):
 
 
 iterations = 20 if len(sys.argv) < 4 else int(sys.argv[3])
-sample(batches=1, iterations=iterations, n1=6, n2=3)
+sample(batches=1, iterations=iterations, n1=3, n2=3)

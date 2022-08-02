@@ -43,7 +43,21 @@ For example
 
     python3 sample.py my_model.checkpoint 0.4 20
 
+You can also tweak thing like the number of images per sample by changing the code.
 
+Here are some samples with different temperatures trained using ```big_logistic_mixture20latentnoflows.yaml```
+- with a temperature of 0.2
+<p align="center">
+    <img src="images/big_0.2.png">
+</p>
+- with a temperature of 0.4
+<p align="center">
+    <img src="images/big_0.4.png">
+</p>
+- with a temperature of 0.6
+<p align="center">
+    <img src="images/big_0.6.png">
+</p>
 ## Cherrypicking
 A script is also provided to cherry pick samples. It is similar to ```sample.py```.
     
@@ -98,14 +112,16 @@ Now, for the training parameters we have:
 - ```epochs_per_checkpoint```
 - ```epochs```. For how many epochs should the model train?
 - ```gradient_clipping```. Default to none. May help if you are getting nans during training. 
-If you keep getting nans that the cause is a kernel is going to almost zero and so the weight normalization breaks. Gradinet clipping won't help here.
+If you keep getting nans then it is likely that the cause is a kernel  going to almost zero causing the weight normalization breaks. Gradinet clipping won't help here.
 
 ## Exploring the latent variables
 
-A fast and loose method to check how exactly are the different latent variables affecting the result is to change one 
-of the latent variables and keep the rest fixed. Here we jamm the gaussian noise that is then multiplied to get the
-specific gaussian  via the re parametrization trick while keeping the noise for the other variables fixed.
-It's best to use noise with high variance to make the effects more noticeable.
+A fast and loose method to check how  are the different latent variables affecting the result is to change one 
+of them while keeping the rest fixed. Here we pick one of the latent variables and jamm the gaussian noise that is then multiplied to get the
+specific gaussian via the reparametrization trick while keeping the noise for the other variables fixed. Note that the latent variables that come
+after the selected one are still going to be modified but they are going to use the same noise vector.
+
+It's best to use noise with high variance to make the effects more noticeable.   
 Here ```latent_space_exploration.py``` does this for each of the latent variables
 The command is similar to ```sample.py```:
 

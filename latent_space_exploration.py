@@ -7,24 +7,10 @@ import sys
 import torchvision
 from model.utils import device
 
-# weights_file = "saved_weights/final_tiny.model"
-# config_file = "model_configs/tiny.yaml"
-
-# weights_file = "tiny_mixture.checkpoint"
-# weights_file = "saved_weights/final_tiny_mixture3.model"
-# config_file = "model_configs/tiny_mixture.yaml"
-
-# weights_file = "small_mixture.checkpoint"
-# config_file = "model_configs/small_mixture.yaml"
-
-weights_file = "gaussian_mixture.checkpoint"
-config_file = "model_configs/gaussian_mixture.yaml"
-
-if len(sys.argv) >= 3:
-    weights_file = sys.argv[2]
-    tem = get_archfile_from_checkpoint(weights_file)
-    if tem is not None:
-        config_file = tem
+weights_file = sys.argv[1]
+config_file = get_archfile_from_checkpoint(weights_file)
+if config_file is None:
+    raise ValueError("config not found")
 
 model = get_model(config_file)
 load_state_from_file(model, weights_file)
@@ -36,7 +22,7 @@ def latent_effects(latent_shapes, n=3, batches=1, iterations=500):
 
     with torch.no_grad():
         # readjusting batchnorm
-        t = float(sys.argv[1])  # 0.45
+        t = float(sys.argv[2])
 
         for _ in range(iterations):
             model.sample(1, t=t)
