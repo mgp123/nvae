@@ -116,7 +116,6 @@ class Normal(Distribution):
         return log_p
 
     def kl(self, normal):
-        
         log_det1 = torch.log(self.sig)
         log_det2 = torch.log(normal.sig)
 
@@ -133,9 +132,8 @@ class Normal(Distribution):
         # trace_loss = torch.sum(self.sig * inv_sigma2, dim=dims)
         # mu_loss = torch.sum(delta_mu * inv_sigma2 * delta_mu, dim=dims)
 
-
         det_loss = log_det2 - log_det1
-        kl_loss = (torch.square(delta_mu) + torch.square(self.sig) )
+        kl_loss = (torch.square(delta_mu) + torch.square(self.sig))
         kl_loss = kl_loss * torch.square(inv_sigma2) - 1
         kl_loss = det_loss + 0.5 * kl_loss
 
@@ -242,7 +240,7 @@ class DiscMixLogistic(Distribution):
         # fun fact: mu blows up late in trainning if you dont clamp it. 
         # Maybe it is trying to push the mus to more and more extreme values  
         # when you are trying to reconstruct the pure white/black?
-        self.mu = torch.clamp(l[:, :, n_mix:2 * n_mix, :, :], -5, 5) 
+        self.mu = torch.clamp(l[:, :, n_mix:2 * n_mix, :, :], -5, 5)
 
         log_scales = l[:, :, 2 * n_mix:3 * n_mix, :, :]
         log_scales = torch.clamp(log_scales, min=-7.0)
@@ -280,13 +278,12 @@ class DiscMixLogistic(Distribution):
         cdf_min = torch.sigmoid(min_in)
 
         log_pz = cdf_plus - cdf_min  # prob (|x-z| <= 1./255) for each subpixel for each part of  mixture
-        
+
         log_pz = torch.log(torch.clamp(log_pz, min=1e-10))
 
         # now we take into acount the clipping for the lower and upper parts
         log_cdf_plus = plus_in - torch.nn.functional.softplus(plus_in)
         log_inverse_cdf_min = - torch.nn.functional.softplus(min_in)
-        
 
         log_pz = torch.where(
             z < 5e-4, log_cdf_plus,
@@ -299,7 +296,6 @@ class DiscMixLogistic(Distribution):
 
         log_probs = logits_to_log_probs(self.logits)
 
-
         # In the next line we have, in index notation:
         # res_b,c,k,h,w =  log(p(|clipped x-z| <= 1./255) | selected = k) + log(p(selected = k))
         res = log_pz + log_probs
@@ -309,7 +305,6 @@ class DiscMixLogistic(Distribution):
         # now we have, in index notation:
         # res_b,c,h,w =  log(sum_k p(|clipped x-z| <= 1./255) and selected = k)
         # = log(p(|clipped x-z| <= 1./255). exactly what we wanted
-        
 
         return res
 
@@ -338,5 +333,3 @@ class DiscMixLogistic(Distribution):
     @classmethod
     def params_per_subpixel(cls, *args, **kwargs):
         return (DiscLogistic.params_per_subpixel() + 1) * args[0]
-
-
