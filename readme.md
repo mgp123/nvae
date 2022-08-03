@@ -10,6 +10,8 @@ Some differences with the original implementation:
 - No spectral regularization
 - In the discrete logistic mixture each pixel channel has its own set of selectors instead of one per pixel
 
+Note that the original implementation allows for different architectures for the encoder/decoder cell.  This is only one of them.
+
 Also, it's possible that this implementation contains multiple errors that make it worse than the original.
 
 
@@ -162,6 +164,6 @@ As you go through the encoder tower you double the channels and halve the spatia
     <img src="images/diagram.svg" width=500>
 </p>
 
-I talk a  bit about the NVAE structure [here](https://mgp123.github.io/2022/04/20/nvae/). 
+<!-- I talk a  bit about the NVAE structure [here](https://mgp123.github.io/2022/04/20/nvae/). 
 There are a lot of diagrams, so it is much easier to follow than the code. 
-There's still some stuff that is only present on the code but most of the general structure is there.
+There's still some stuff that is only present on the code but most of the general structure is there. -->
