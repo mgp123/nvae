@@ -20,13 +20,10 @@ class KLScheduler:
         kl_multiplier = []
         for i in range(model.number_of_scales):
             for k in range(number_of_splits):
-                # kl_multiplier.append((2**(model.number_of_scales-1-i))/number_of_splits)
-                # TODO should the weights be proportional to the spatial dimentions or only to the side
                 kl_multiplier.append((4**(model.number_of_scales-1-i))/number_of_splits)
 
             number_of_splits = max(model.min_splits, number_of_splits // model.exponential_scaling)
         
-        # TODO check if should reverse or not
         kl_multiplier.reverse()
         self.kl_multiplier = torch.FloatTensor(kl_multiplier).unsqueeze(1)
         self.kl_multiplier = self.kl_multiplier/torch.max(self.kl_multiplier)
@@ -50,7 +47,6 @@ class KLScheduler:
             # average kl_loss for this group across batches
             kl_coeff_i = torch.mean(kl_coeff_i, dim=1, keepdim=True) + 0.01
 
-            ## TODO should self.kl_multiplier  divide kl_coeff_i or multiply it?
             kl_coeff_i = kl_coeff_i * self.kl_multiplier * torch.sum(kl_coeff_i)
             kl_coeff_i = kl_coeff_i / torch.mean(kl_coeff_i, dim=1, keepdim=True)
 

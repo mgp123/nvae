@@ -126,7 +126,6 @@ class Autoencoder(nn.Module):
                 )
             )
         kl_losses = []
-        # TODO check if expanding makes each batch element separe and works with the learning of the constant 
         residual_dec = self.decoder_constant.expand((enc_parts[0].size(0), -1, -1, -1))
         for i, enc_part_i in enumerate(enc_parts):
             # note that the mixing for i == 0 behaves different

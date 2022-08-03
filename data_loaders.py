@@ -8,7 +8,8 @@ from os.path import exists
 # slightly modified version of the one used in another project 
 def get_data_loaders(batch_size) -> Tuple[data.DataLoader, data.DataLoader]:
     if not exists("dataset"):
-        raise Exception("No dataset found. You need to put your directory with 128x128 images inside the dataset directory")
+        raise Exception("No dataset found. You need to put your directory with 128x128 images inside the dataset "
+                        "directory")
     t = transforms.Compose([transforms.Resize(64) ,transforms.ToTensor()])
     dataset = datasets.ImageFolder("dataset", t)
     test_set_size = 4

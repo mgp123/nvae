@@ -89,7 +89,7 @@ class Normal(Distribution):
         super().__init__()
         mu, log_sig = torch.chunk(params, 2, 1)
         self.mu = soft_clamp5(mu)
-        # TODO soft_clamp5 log_sig?
+        # soft_clamp5 log_sig?
         log_sig = soft_clamp5(log_sig)
 
         self.sig = torch.exp(log_sig) * t + 1e-2

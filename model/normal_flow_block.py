@@ -2,7 +2,6 @@ from torch import nn
 import torch
 
 # the original implementation also performs weight normalization on the kernels 
-# TODO check if implementation is correct
 class ARConv2d(nn.Conv2d):
     def __init__(self,
                 in_channels,
