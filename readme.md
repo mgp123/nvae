@@ -117,7 +117,7 @@ Now, for the training parameters we have:
 - ```warmup_epochs```
 - ```batch_size```
 - ```write_reconstruction```. Boolean indicating if you also want to show how the dataset images are reconstructed during training
-- ```images_per_checkpoint```. Default is none. Use only if you prefer to when you see certain number of images intead of doing it by epochs. 
+- ```images_per_checkpoint```. Default is none. Use only if you prefer save after seing certain number of images instead of doing it by epochs. 
 - ```epochs_per_checkpoint```
 - ```epochs```. Number of training epochs
 - ```gradient_clipping```. Default to none. May help if you are getting nans during training. 
