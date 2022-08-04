@@ -164,6 +164,6 @@ As you go through the encoder tower you double the channels and halve the spatia
     <img src="images/diagram.svg" width=500>
 </p>
 
-I talk a  bit about the NVAE structure [here](https://mgp123.github.io/2022/04/20/nvae/). 
+I talk a  bit about the NVAE structure [here](https://mgp123.github.io/2022/08/03/nvae/). 
 There are a lot of diagrams, so it is much easier to follow than the code. 
-There's still some stuff that is only present on the code but most of the general structure is there.
+There's still some stuff that is only on the code but most of the general structure is there.
