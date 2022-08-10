@@ -48,7 +48,7 @@ class KLScheduler:
             kl_coeff_i = torch.mean(kl_coeff_i, dim=1, keepdim=True) + 0.01
 
             kl_coeff_i = kl_coeff_i * self.kl_multiplier * torch.sum(kl_coeff_i)
-            kl_coeff_i = kl_coeff_i / torch.mean(kl_coeff_i, dim=1, keepdim=True)
+            kl_coeff_i = kl_coeff_i / torch.mean(kl_coeff_i, dim=0, keepdim=True)
 
 
             return torch.sum(kl_all * kl_coeff_i.detach(), dim=0)
