@@ -7,10 +7,25 @@ from model.utils import device
 
 
 # taken directly from source
-
+@torch.jit.script
 def soft_clamp5(x: torch.Tensor):
     return x.div(5.).tanh_().mul(5.)
 
+@torch.jit.script
+def kl_jit(mu1, sig1, mu2, sig2):
+        log_det1 = torch.log(sig1)
+        log_det2 = torch.log(sig2)
+
+        inv_sigma2 = 1.0 / sig2
+
+        delta_mu = mu2 - mu1
+
+        det_loss = log_det2 - log_det1
+        kl_loss = (torch.square(delta_mu) + torch.square(sig1))
+        kl_loss = kl_loss * torch.square(inv_sigma2) - 1
+        kl_loss = det_loss + 0.5 * kl_loss
+
+        return kl_loss
 
 logistic_distribution = torch.distributions.TransformedDistribution(
     torch.distributions.uniform.Uniform(1e-5, 1. - 1e-5),
@@ -115,7 +130,9 @@ class Normal(Distribution):
 
         return log_p
 
+    
     def kl(self, normal):
+        return kl_jit(self.mu,self.sig, normal.mu, normal.sig)
         log_det1 = torch.log(self.sig)
         log_det2 = torch.log(normal.sig)
 
