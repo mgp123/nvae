@@ -76,6 +76,9 @@ def get_training_params(yaml_path=None, checkpoint_file=None):
     training_parameters["epochs"] = training_parameters.get("epochs", -1)
 
     training_parameters["gradient_clipping"] = training_parameters.get("gradient_clipping", None)
+    training_parameters["half_precision"] = training_parameters.get("half_precision", False)
+    training_parameters["use_tensor_checkpoints"] = training_parameters.get("use_tensor_checkpoints", False)
+
 
     return training_parameters
 

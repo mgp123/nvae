@@ -32,6 +32,7 @@ class Autoencoder(nn.Module):
                  fixed_flows=False):
         super(Autoencoder, self).__init__()
 
+        self.cached_batch = None
         self.latent_size = latent_size
         self.sampling_method = sampling_method
         self.initial_splits_per_scale = initial_splits_per_scale
@@ -40,6 +41,7 @@ class Autoencoder(nn.Module):
         self.min_splits = min_splits
         self.input_dimension = input_dimension
         self.num_blocks_prepost = num_blocks_prepost
+        self.use_tensor_checkpoints = False
 
         channels_towers_inside = channel_towers * (channel_multiplier ** num_blocks_prepost)
 
@@ -117,13 +119,17 @@ class Autoencoder(nn.Module):
                 )
             )
         )
+    
+    def set_use_tensor_checkpoints(self, value):
+        self.use_tensor_checkpoints = value
 
     def forward(self, x):
         enc_parts = \
             self.encoder_tower(
                 self.preprocess(
                     self.initial_transform(x)
-                )
+                ),
+                use_tensor_checkpoints=self.use_tensor_checkpoints
             )
         kl_losses = []
         residual_dec = self.decoder_constant.expand((enc_parts[0].size(0), -1, -1, -1))
@@ -131,7 +137,7 @@ class Autoencoder(nn.Module):
             # note that the mixing for i == 0 behaves different
             residual_dec, kl_loss = self.mixer(enc_part_i, residual_dec, i)
             kl_losses.append(kl_loss)
-            residual_dec = self.decoder_tower(residual_dec, i)
+            residual_dec = self.decoder_tower(residual_dec, i, use_tensor_checkpoints=self.use_tensor_checkpoints)
 
         distribution_params = self.to_distribution_conv(
             self.postprocess(residual_dec)
@@ -190,11 +196,26 @@ class Autoencoder(nn.Module):
         x = torch.clamp(x, 0, 1.)
 
         return x
+    
+    def get_batchnorm_cells(self):
+        if self.cached_batch is None:
+            self.cached_batch = self.encoder_tower.get_batchnorm_cells() + \
+                   self.decoder_tower.get_batchnorm_cells() + \
+                   self.preprocess.get_batchnorm_cells() + \
+                   self.postprocess.get_batchnorm_cells() + \
+                   self.mixer.get_batchnorm_cells()
+        return self.cached_batch
 
     def regularization_loss(self):
+        # cached_batch = self.get_batchnorm_cells()
+        # k = list(map(lambda x: torch.max(torch.abs(x.weight)), cached_batch))
+        # k = torch.stack(k)
+        # return torch.sum(k)
+
         loss = self.encoder_tower.regularization_loss() + \
                self.decoder_tower.regularization_loss() + \
                self.preprocess.regularization_loss() + \
                self.postprocess.regularization_loss() + \
                self.mixer.regularization_loss()
         return loss
+

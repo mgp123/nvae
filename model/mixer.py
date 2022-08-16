@@ -204,6 +204,9 @@ class Mixer(nn.Module):
         y = self.decoder_mixer[i](dec_part, z)
         return y
 
+    def get_batchnorm_cells(self):
+        res = []
+        return res
 
     def regularization_loss(self):
         loss = 0

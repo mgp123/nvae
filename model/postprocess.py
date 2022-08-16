@@ -17,6 +17,9 @@ class PostprocessCell(nn.Module):
 
     def regularization_loss(self):
         return self.model.regularization_loss()
+
+    def get_batchnorm_cells(self):
+        return self.model.get_batchnorm_cells()
  
 class Postprocess(nn.Module):
     def __init__(self, in_channels, num_blocks, num_cells_per_block, channel_multiplier):
@@ -53,3 +56,10 @@ class Postprocess(nn.Module):
             if i != 0:
                 loss += l.regularization_loss()
         return loss
+
+    def get_batchnorm_cells(self):
+        res = []
+        for i, l in enumerate(self.model):
+            if i != 0:
+                res += l.get_batchnorm_cells()
+        return res

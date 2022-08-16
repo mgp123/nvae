@@ -1,5 +1,5 @@
 from torch import nn
-
+import torch
 from model.residual_cell_encoder import ResidualCellEncoder
 from model.splitter import Splitter
 
@@ -37,6 +37,12 @@ class EncoderBlock(nn.Module):
     def forward(self, x):
         return self.model(x)
 
+    def get_batchnorm_cells(self):
+        res = []
+        for l in self.model:
+            res += l.get_batchnorm_cells()
+        return res
+
     def regularization_loss(self):
         loss = 0
         for l in self.model:
@@ -54,7 +60,7 @@ class EncoderGroup(nn.Module):
         """
         super(EncoderGroup, self).__init__()
 
-        self.model = Splitter()
+        self.model = nn.ModuleList()
         out_channels = continuation_channels
 
         for i in range(number_of_splits):
@@ -69,11 +75,32 @@ class EncoderGroup(nn.Module):
                 )
             )
 
-    def forward(self, x):
-        return self.model(x)
+    def forward(self, x, use_tensor_checkpoints=False):
+        y = []
+        last_output = x
+        for module in self.model:
+            
+            if use_tensor_checkpoints:
+                # this messes up the batchnorm
+                last_output = torch.utils.checkpoint.checkpoint(module, last_output)
+            else:
+                last_output = module(last_output)
+
+            y.append(last_output)
+        # if self.split_tail:
+        #     y.append(last_output.clone())
+
+        return y
+        # return self.model(x)
 
     def regularization_loss(self):
         loss = 0
         for l in self.model:
             loss += l.regularization_loss()
         return loss
+
+    def get_batchnorm_cells(self):
+        res = []
+        for l in self.model:
+            res += l.get_batchnorm_cells()
+        return res

@@ -1,5 +1,5 @@
 from torch import nn
-
+import torch
 from model.residual_cell_decoder import ResidualCellDecoder
 
 
@@ -40,6 +40,13 @@ class DecoderBlock(nn.Module):
         for l in self.model:
             loss += l.regularization_loss()
         return loss
+
+    def get_batchnorm_cells(self):
+        res = []
+        for l in self.model:
+            res += l.get_batchnorm_cells()
+        return res
+
 
 class DecoderTower(nn.Module):
     def __init__(self, out_channels, number_of_scales, final_inputs_per_scale, cells_per_input=1,
@@ -83,8 +90,20 @@ class DecoderTower(nn.Module):
         blocks.reverse()
         self.blocks = nn.ModuleList(blocks)
 
-    def forward(self, x, level):
-        return self.blocks[level](x)
+    def forward(self, x, level, use_tensor_checkpoints=False):
+        if use_tensor_checkpoints:
+            # this messes up the batchnorm
+            x =  torch.utils.checkpoint.checkpoint(self.blocks[level], x)
+            return x
+        else:
+            return self.blocks[level](x)
+
+    def get_batchnorm_cells(self):
+        res = []
+        for i, l in enumerate(self.blocks):
+            if i != len(self.blocks) - 1:
+                res += l.get_batchnorm_cells()
+        return res
 
     def regularization_loss(self):
         loss = 0

@@ -9,7 +9,7 @@ class EncoderTower(nn.Module):
                  exponential_decay_splits=1, min_splits=1):
         super(EncoderTower, self).__init__()
 
-        self.model = SplitterConcatenate()
+        self.model = nn.ModuleList()
 
         number_of_splits = initial_splits_per_scale
         i_channels = in_channels
@@ -32,10 +32,21 @@ class EncoderTower(nn.Module):
 
             number_of_splits = max(min_splits, number_of_splits // exponential_decay_splits)
 
-    def forward(self, x):
-        y = self.model(x)
+    def forward(self, x,use_tensor_checkpoints=False):
+        y = []
+        last_output = x
+        for module in self.model:
+            l = module(last_output,use_tensor_checkpoints=use_tensor_checkpoints)
+            last_output = l[-1]
+            y += l        
         y.reverse()
         return y
+
+    def get_batchnorm_cells(self):
+        res = []
+        for l in self.model:
+            res += l.get_batchnorm_cells()
+        return res
 
     def regularization_loss(self):
         loss = 0
