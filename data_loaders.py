@@ -21,7 +21,7 @@ def get_data_loaders(batch_size) -> Tuple[data.DataLoader, data.DataLoader]:
     data_loader_train = data.DataLoader(
         train_set,
         batch_size=batch_size,
-        num_workers=5,
+        num_workers=8,
         shuffle=True,
         pin_memory=True
     )
