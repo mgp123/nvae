@@ -157,6 +157,19 @@ There's a function included in the script that allows checking the effect inside
 modifying the spatial components of it. It's not a good idea to use it as the spatial dimension are usually 
 relatively big (depends on the architecture but 16x16, or 8x8 are common) so they end up being pretty large.
 
+
+## Latent interpolation
+
+You can do a latent interpolation between 2 images using ```latent_interpolation.py```. It takes a model and 2 images and combines their latent variables. The particular latent variables that you get during the encoding are non-deterministic, thus, you may get different results each time (in practice they look the same).
+
+    python3 latent_interpolation.py <model params> <image1> <image2> <optional n>
+
+with ``n`` being the number of points in the interpolation. Default is set to 1.
+
+<p align="center">
+    <img src="images/latent_combine.png" width=466.7>
+</p>
+
 ## Details behind the NVAE architecture
 In short, it is a *comb-like* structure with the encoder and decoder going in opposite directions.\
 Each level of the decoder gets as input a sort of combination of the next encoder level and the previous decoder level.
