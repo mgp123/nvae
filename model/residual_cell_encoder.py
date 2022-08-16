@@ -16,9 +16,10 @@ class ResidualCellEncoder(nn.Module):
             nn.Conv2d(
                 in_channels=in_channels,
                 out_channels=out_channels,
-                kernel_size=(3, 3),
+                kernel_size=(3, 3), 
                 stride=stride,
-                padding=1
+                padding=1,
+                # bias=False # TODO bias should be false
             ),
             nn.BatchNorm2d(out_channels, eps=1e-5, momentum=0.05),
             nn.SiLU(),
