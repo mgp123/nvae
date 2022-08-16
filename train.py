@@ -3,12 +3,15 @@ import torch
 from tqdm import tqdm
 from os.path import exists
 from data_loaders import get_data_loaders
+from dummyWith import dummyWith
 from kl_scheduler import KLScheduler
 from model_from_config import get_archfile_from_checkpoint, get_model, get_training_params
 from model.utils import device
 import torchvision
 from torch.utils.tensorboard import SummaryWriter
+import torch.utils.checkpoint as checkpoint
 
+torch.backends.cudnn.benchmark = True
 
 def train():
     model_code_name = "logistic_mixture10latent"
@@ -30,13 +33,10 @@ def train():
     learning_rate_min = 1e-5
     batch_size = 40  # prev was 20  # prev was 32
 
-    write_loss_every = 320 * 3 * 3 * 2
-    write_loss_every += (-write_loss_every) % batch_size  # to make sure the mod works
-    write_images_every = 4375 * 16 * 2  # idem
-    write_images_every += (-write_images_every) % batch_size
     write_reconstruction = True
-    images_per_checkpoint = 4378 * 16 * 1000  # idem
-    images_per_checkpoint += (-images_per_checkpoint) % batch_size
+    save_samples_during_training = False
+    # images_per_checkpoint = 4378 * 16 * 1000  # idem
+    # images_per_checkpoint += (-images_per_checkpoint) % batch_size
     images_per_checkpoint = None
 
     epochs_per_checkpoint = 2
@@ -52,6 +52,18 @@ def train():
     images_per_checkpoint = training_parameters.get("images_per_checkpoint")
     epochs_per_checkpoint = training_parameters.get("epochs_per_checkpoint")
     gradient_clipping = training_parameters.get("gradient_clipping")
+    half_precision = training_parameters.get("half_precision")
+    use_tensor_checkpoints = training_parameters.get("use_tensor_checkpoints")
+
+
+    write_loss_every = 320 * 3 * 3 * 2
+    write_loss_every += (-write_loss_every) % batch_size  # to make sure the mod works
+    write_images_every = 4375 * 16 * 2  # idem
+    write_images_every += (-write_images_every) % batch_size
+
+    precision_opener = torch.cuda.amp.autocast if half_precision else dummyWith
+    model.set_use_tensor_checkpoints(use_tensor_checkpoints)
+
 
     data_loader_train, data_loader_test = get_data_loaders(batch_size)
 
@@ -73,6 +85,7 @@ def train():
     writer = None
     initial_epoch = 0
     initial_seen_images = 0
+    scaler = torch.cuda.amp.GradScaler()
 
     if exists(checkpoint_file):
         save = torch.load(checkpoint_file)
@@ -87,6 +100,8 @@ def train():
         seen_images = save["seen_images"]
         initial_seen_images = seen_images
         writer = SummaryWriter(log_dir=save["log_dir"])
+
+        del save
 
         print("Loaded checkpoint after " + str(initial_epoch) + " epochs")
 
@@ -103,6 +118,8 @@ def train():
         current_step=initial_epoch)
 
     last_loss = 0 # only used to check for nans before checkpoints 
+    last_reg_loss = 0
+    reg_loss_threshold = 2.5e+4
 
     for epoch in tqdm(range(initial_epoch, epochs), initial=initial_epoch, total=epochs, desc="epoch"):
 
@@ -111,27 +128,41 @@ def train():
 
             optimizer.zero_grad()
 
-            x_distribution, kl_loss = model(images)
+            with precision_opener():
+                
+                x_distribution, kl_loss = model(images)
 
-            log_p = x_distribution.log_p(images)
-            # we sum the independent log_ps for each entry to get the log_p of the whole image
-            log_p = torch.sum(log_p, dim=[1, 2, 3])
+                log_p = x_distribution.log_p(images)
+                # we sum the independent log_ps for each entry to get the log_p of the whole image
+                log_p = torch.sum(log_p, dim=[1, 2, 3])
 
-            kl_loss_balanced = kl_scheduler.warm_up_coeff() * kl_scheduler.balance(kl_loss)
-            loss = -log_p + kl_constant * kl_loss_balanced
-            loss = torch.mean(loss)
+                kl_loss_balanced = kl_scheduler.warm_up_coeff() * kl_scheduler.balance(kl_loss)
+                loss = -log_p + kl_constant * kl_loss_balanced
+                loss = torch.mean(loss)
 
-            if regularization_constant != 0:
-                loss += regularization_constant * model.regularization_loss()
+                if regularization_constant != 0:
+                    regularization_loss = model.regularization_loss()
+                    loss += regularization_constant * regularization_loss
+                else:
+                    regularization_loss = 0
 
-            loss.backward()
+            if half_precision:
+                scaler.scale(loss).backward()
+            else:
+                loss.backward()
+
             if gradient_clipping is not None:
-              torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clipping)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clipping)
 
-            optimizer.step()
+            if half_precision:
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                optimizer.step()
 
             seen_images += batch_size
             last_loss = loss.item()
+            last_reg_loss = regularization_loss.item()
 
             if (write_loss_every is not None) and (seen_images - initial_seen_images) % write_loss_every == 0:
                 if torch.isnan(loss).any():
@@ -140,6 +171,9 @@ def train():
                 writer.add_scalar("loss/iter", loss.item(), seen_images)
                 writer.add_scalar("rec_loss/iter", -torch.mean(log_p).item(), seen_images)
                 writer.add_scalar("kl_loss/iter", torch.mean(kl_loss_balanced).item(), seen_images)
+                
+                if regularization_constant != 0:
+                    writer.add_scalar("reg_loss/iter", regularization_loss.item(), seen_images)
 
                 kl_by_split = torch.mean(torch.stack(kl_loss, dim=0), dim=1)
 
@@ -176,6 +210,8 @@ def train():
 
             if last_loss != last_loss:
                 raise ValueError('Found NaN during training')
+            if reg_loss_threshold is not None and last_reg_loss > reg_loss_threshold:
+                raise ValueError('Regularization loss spiked during training')
 
             img = None
             with torch.no_grad():
@@ -183,6 +219,7 @@ def train():
                 
             img_grid = torchvision.utils.make_grid(img)
             writer.add_image("generated image", img_grid, global_step=seen_images)
+
 
             create_checkpoint(epoch + 1,
                               epochs,
@@ -193,6 +230,15 @@ def train():
                               checkpoint_file,
                               writer,
                               config_file)
+            
+            if save_samples_during_training:
+                with torch.no_grad():
+                    for p in [0.2,0.4,0.6]:
+                        img = model.sample(9,t=p)
+                        img_grid = torchvision.utils.make_grid(img, nrow=3, padding=0)
+                        torchvision.utils.save_image(img_grid,"local/samples/trained_"+ str(p) +"_" + str(epoch) +".png")
+                
+
         kl_scheduler.step()
 
     writer.flush()
