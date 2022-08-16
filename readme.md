@@ -50,7 +50,7 @@ For example
 
 You can also tweak thing like the number of images per sample by changing the code.
 
-Here are some samples with different temperatures trained using ```big_logistic_mixture20latentnoflows.yaml```
+Here are some samples with different temperatures trained using ```penguin.yaml```
  
 - temperature = 0.2
 <p align="center">
@@ -119,7 +119,7 @@ Now, for the training parameters we have:
 - ```warmup_epochs```
 - ```batch_size```
 - ```write_reconstruction```. Boolean indicating if you also want to show how the dataset images are reconstructed during training
-- ```images_per_checkpoint```. Default is none. Use only if you prefer to save after seing certain number of images instead of doing it by epochs. 
+- ```images_per_checkpoint```. Default is none. Use only if you prefer to save after seeing certain number of images instead of doing it by epochs. 
 - ```epochs_per_checkpoint```
 - ```epochs```. Number of training epochs
 - ```gradient_clipping```. Default to none. May help if you are getting nans during training. 
