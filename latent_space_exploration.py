@@ -17,7 +17,7 @@ load_state_from_file(model, weights_file)
 model = model.to("cuda:0")
 
 
-def latent_effects(latent_shapes, n=3, batches=1, iterations=500):
+def latent_effects(latent_shapes, n=3, batches=1, iterations=500, show_difference=False):
     global model
 
     with torch.no_grad():
@@ -41,15 +41,21 @@ def latent_effects(latent_shapes, n=3, batches=1, iterations=500):
                 temp = torch.clone(latent_zs[k])
 
                 if i != 0:
-                    tp = .8  # move it a lot to make the effect visible
+                    tp = 0.4  # move it a lot to make the effect visible
                     latent_zs[k] = torch.randn_like(latent_zs[k]) * tp
 
                 tensor_image = model.generate_from_latents(latent_zs).detach().cpu()
+                if i != 0 and show_difference:
+                    tensor_image -= tensor_images[0]
+                    tensor_image = 2*tensor_image
+
                 tensor_images += [c for c in tensor_image]
                 latent_zs[k] = temp
 
-            img_grid = torchvision.utils.make_grid(tensor_images, padding=0, nrow=4)
-
+            img_grid = torchvision.utils.make_grid(tensor_images, padding=0, nrow=4, normalize=show_difference)
+            original_image = tensor_images[0]
+            _, w, h = original_image.shape
+            img_grid[:,:w,:h] = tensor_images[0]
             plt.imshow(img_grid.permute(1, 2, 0))
             plt.axis('off')
             plt.tight_layout()
@@ -80,7 +86,7 @@ def group_effects(latent_shapes, group, n=3, batches=1, iterations=500):
 
             tensor_images = []
             group_size = latent_shapes[group][1]
-            tp = 0.7  # move it a lot to make the effect visible
+            tp = 1.2  # move it a lot to make the effect visible
             noise = torch.randn_like(latent_zs[group]) * tp
 
             for i in range(group_size):
@@ -118,4 +124,4 @@ def get_latent_shapes(m: Autoencoder):
 shapes = get_latent_shapes(model)
 iterations = 20 if len(sys.argv) < 4 else int(sys.argv[3])
 
-latent_effects(shapes, batches=1, n=1, iterations=iterations)
+latent_effects(shapes, batches=1, n=1, iterations=iterations, show_difference=False)
