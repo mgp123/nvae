@@ -49,7 +49,7 @@ class DecoderBlock(nn.Module):
 
 
 class DecoderTower(nn.Module):
-    def __init__(self, out_channels, number_of_scales, final_inputs_per_scale, cells_per_input=1,
+    def __init__(self, out_channels: int, number_of_scales: int, final_inputs_per_scale: int, cells_per_input=1,
                  channel_divider=2, exponential_growth_inputs=1, min_splits=1):
         super(DecoderTower, self).__init__()
 

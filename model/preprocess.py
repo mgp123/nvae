@@ -20,7 +20,7 @@ class PreprocessCell(nn.Module):
 
  
 class Preprocess(nn.Module):
-    def __init__(self, in_channels, num_blocks, num_cells_per_block, channel_multiplier):
+    def __init__(self, in_channels: int, num_blocks: int, num_cells_per_block: int, channel_multiplier: int):
         super(Preprocess,self).__init__()
         model = [nn.Identity()]
         out_channels = in_channels*channel_multiplier

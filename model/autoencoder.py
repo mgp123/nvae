@@ -14,12 +14,12 @@ from model.distributions import Normal, DiscMixLogistic, Distribution
 
 class Autoencoder(nn.Module):
     def __init__(self,
-                 channel_towers,
-                 number_of_scales,
-                 initial_splits_per_scale,
-                 latent_size,
-                 input_dimension,
-                 num_flows,
+                 channel_towers: int,
+                 number_of_scales: int,
+                 initial_splits_per_scale: int,
+                 latent_size: int,
+                 input_dimension: int,
+                 num_flows: int,
                  num_blocks_prepost=1,
                  num_cells_per_block_prepost=2,
                  cells_per_split_enc=2,
@@ -153,8 +153,10 @@ class Autoencoder(nn.Module):
     def sample(self, n: int, t: Union[List[float], float] = 1.0, final_distribution_sampling="mean"):
         ts = t
 
+
         if isinstance(t, float) or isinstance(t, int):
             ts = [t] * self.decoder_tower.n_inputs
+
 
         residual_dec = self.decoder_constant.expand((n, -1, -1, -1))
         for i in range(self.decoder_tower.n_inputs):

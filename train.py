@@ -65,7 +65,7 @@ def train():
     model.set_use_tensor_checkpoints(use_tensor_checkpoints)
 
 
-    data_loader_train, data_loader_test = get_data_loaders(batch_size)
+    data_loader_train, data_loader_test = get_data_loaders(batch_size, model.input_dimension)
 
     optimizer = torch.optim.Adamax(
         model.parameters(),
@@ -90,7 +90,6 @@ def train():
     if exists(checkpoint_file):
         save = torch.load(checkpoint_file)
         initial_epoch = save["epoch"]
-        # epochs = save["total_epochs"]
         model = model.to("cuda:0")
         model.load_state_dict(save["state_dict"], strict=False)
 

@@ -53,11 +53,11 @@ class DummyMixer(nn.Module):
 
 class Mixer(nn.Module):
     def __init__(self,
-                 channels_towers,
-                 number_of_scales,
-                 initial_splits_per_scale,
-                 latent_size,
-                 n_flows,
+                 channels_towers: int,
+                 number_of_scales: int,
+                 initial_splits_per_scale: int,
+                 latent_size: int,
+                 n_flows: int,
                  channel_multiplier=2,
                  exponential_scaling=1,
                  min_splits=1,

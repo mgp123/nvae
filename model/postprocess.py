@@ -22,7 +22,7 @@ class PostprocessCell(nn.Module):
         return self.model.get_batchnorm_cells()
  
 class Postprocess(nn.Module):
-    def __init__(self, in_channels, num_blocks, num_cells_per_block, channel_multiplier):
+    def __init__(self, in_channels: int, num_blocks: int, num_cells_per_block: int, channel_multiplier: int):
         super(Postprocess,self).__init__()
         model = [nn.Identity()]
         out_channels = in_channels//channel_multiplier

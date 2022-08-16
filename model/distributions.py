@@ -32,7 +32,7 @@ logistic_distribution = torch.distributions.TransformedDistribution(
     [torch.distributions.SigmoidTransform().inv]
 )
 
-
+# adapted from source
 def logits_to_log_probs(logits):
     m_logits, _ = torch.max(logits, dim=2, keepdim=True)
     log_probs = torch.log(
@@ -133,28 +133,6 @@ class Normal(Distribution):
     
     def kl(self, normal):
         return kl_jit(self.mu,self.sig, normal.mu, normal.sig)
-        log_det1 = torch.log(self.sig)
-        log_det2 = torch.log(normal.sig)
-
-        inv_sigma2 = 1.0 / normal.sig
-
-        delta_mu = normal.mu - self.mu
-
-        # trace_loss = torch.einsum('bcwh,bcwh->b', self.sig, inv_sigma2)
-        # mu_loss = torch.einsum('bcwh,bcwh->b', delta_mu, delta_mu * inv_sigma2)
-
-        # trace_loss = torch.einsum('b..., b... -> b', self.sig, inv_sigma2)
-        # mu_loss = torch.einsum('b..., b... -> b', delta_mu, delta_mu * inv_sigma2)
-
-        # trace_loss = torch.sum(self.sig * inv_sigma2, dim=dims)
-        # mu_loss = torch.sum(delta_mu * inv_sigma2 * delta_mu, dim=dims)
-
-        det_loss = log_det2 - log_det1
-        kl_loss = (torch.square(delta_mu) + torch.square(self.sig))
-        kl_loss = kl_loss * torch.square(inv_sigma2) - 1
-        kl_loss = det_loss + 0.5 * kl_loss
-
-        return kl_loss
 
     def mean(self):
         super().__init__()

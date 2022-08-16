@@ -12,7 +12,7 @@ def read_config(yaml_path):
     return res
 
 
-def get_model(yaml_path):
+def get_model(yaml_path) -> Autoencoder:
     conf = read_config(yaml_path)
     res = Autoencoder(
         conf["channel_towers"],

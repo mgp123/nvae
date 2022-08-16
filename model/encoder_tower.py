@@ -5,7 +5,7 @@ from model.splitter_concatenate import SplitterConcatenate
 
 
 class EncoderTower(nn.Module):
-    def __init__(self, in_channels, number_of_scales, initial_splits_per_scale, cells_per_split=2, channel_multiplier=2,
+    def __init__(self, in_channels: int, number_of_scales: int, initial_splits_per_scale: int, cells_per_split=2, channel_multiplier=2,
                  exponential_decay_splits=1, min_splits=1):
         super(EncoderTower, self).__init__()
 
