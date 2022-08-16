@@ -167,7 +167,7 @@ You can do a latent interpolation between 2 images using ```latent_interpolation
 with ``n`` being the number of points in the interpolation. Default is set to 1.
 
 <p align="center">
-    <img src="images/latent_combine.png" width=466.7>
+    <img src="images/latent_combine.png" width=700>
 </p>
 
 ## Details behind the NVAE architecture
