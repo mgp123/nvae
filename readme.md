@@ -5,10 +5,12 @@
 
 This is a *close enough* implementation I made of *NVAE. A Deep Hierarchical Variational Autoencoder*.
 
-Some differences with the original implementation:
+It has some differences with the original implementation. 
 
-- No spectral regularization
+- The spectral regularization probably has some bug
 - In the discrete logistic mixture each pixel channel has its own set of selectors instead of one per pixel
+- There is no weight normalization in the autoregressive convolutions
+- The autoregressive convolutions themselves might have some problems
 
 Note that the original implementation allows for different architectures for the encoder/decoder cell.  This is only one of them.
 
@@ -122,6 +124,8 @@ Now, for the training parameters we have:
 - ```epochs```. Number of training epochs
 - ```gradient_clipping```. Default to none. May help if you are getting nans during training. 
 If you keep getting nans then it is likely that the cause is a kernel  going to almost zero causing the weight normalization breaks. Gradient clipping won't help here.
+- ```half_precision```. Use half precision. This reduces memory usage, but can lead to unstable behavior.
+- ```use_tensor_checkpoints```. Use tensor checkpointing. This significantly reduces memory usage but increases computation time. Note that this messes up the momentum of the batchnorm.
 
 Note that all the parameters are going to be loaded from the configuration file when you resume training.
 As a consequence, you can also modfy the training parameters even after you started to train. 
