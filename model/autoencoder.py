@@ -119,7 +119,7 @@ class Autoencoder(nn.Module):
                 )
             )
         )
-    
+
     def set_use_tensor_checkpoints(self, value):
         self.use_tensor_checkpoints = value
 
@@ -181,7 +181,7 @@ class Autoencoder(nn.Module):
         batch_size = zs[0].shape[0]
         residual_dec = self.decoder_constant.expand((batch_size, -1, -1, -1))
         for i, z in enumerate(zs):
-            residual_dec = self.mixer.from_latent_mix(residual_dec, i, z)
+            residual_dec = self.mixer.from_normalized_latent_mix(residual_dec, i, z)
             residual_dec = self.decoder_tower(residual_dec, i)
 
         distribution_params = self.to_distribution_conv(
@@ -196,14 +196,61 @@ class Autoencoder(nn.Module):
         x = torch.clamp(x, 0, 1.)
 
         return x
+
     
+
+    def encode(self, x) -> List[torch.Tensor]:
+        """
+        Note that this is a non-deterministic encoding.
+        That is, each run may give you a different set of tensors
+        It outputs a list of tensors z, each of these the one associated with the mixing with the decoder
+        """
+        enc_parts = \
+            self.encoder_tower(
+                self.preprocess(
+                    self.initial_transform(x)
+                ),
+            )
+
+        zs = []
+        residual_dec = self.decoder_constant.expand((enc_parts[0].size(0), -1, -1, -1))
+
+        for i, enc_part_i in enumerate(enc_parts):
+            # note that the mixing for i == 0 behaves different
+            residual_dec, z = self.mixer.mix_and_get_z(enc_part_i, residual_dec, i)
+            zs.append(z)
+            residual_dec = self.decoder_tower(residual_dec, i)
+        return zs
+
+    def decode(self, zs, final_distribution_sampling="mean") -> torch.Tensor:
+        n = zs[0].shape[0]
+        residual_dec = self.decoder_constant.expand((n, -1, -1, -1))
+        for i, z in enumerate(zs):
+            # note that the mixing for i == 0 behaves different
+            residual_dec = self.mixer.mix_with_z(residual_dec, z, i)
+            residual_dec = self.decoder_tower(residual_dec, i)
+
+        distribution_params = self.to_distribution_conv(
+            self.postprocess(residual_dec)
+        )
+
+        x_distribution = Distribution.construct_from_params(
+            self.sampling_method,
+            distribution_params
+        )
+
+        x = x_distribution.get(final_distribution_sampling)
+
+        x = torch.clamp(x, 0, 1.)
+        return x
+
     def get_batchnorm_cells(self):
         if self.cached_batch is None:
             self.cached_batch = self.encoder_tower.get_batchnorm_cells() + \
-                   self.decoder_tower.get_batchnorm_cells() + \
-                   self.preprocess.get_batchnorm_cells() + \
-                   self.postprocess.get_batchnorm_cells() + \
-                   self.mixer.get_batchnorm_cells()
+                                self.decoder_tower.get_batchnorm_cells() + \
+                                self.preprocess.get_batchnorm_cells() + \
+                                self.postprocess.get_batchnorm_cells() + \
+                                self.mixer.get_batchnorm_cells()
         return self.cached_batch
 
     def regularization_loss(self):
@@ -218,4 +265,3 @@ class Autoencoder(nn.Module):
                self.postprocess.regularization_loss() + \
                self.mixer.regularization_loss()
         return loss
-
