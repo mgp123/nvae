@@ -81,10 +81,10 @@ in the desired order.
 
 You can also change the batch size or the amount of pictures in final output by modifying the code.
 
-Here are some cherry-picked samples from the ```big_logistic_mixture20latentnoflows```
+Here are some cherry-picked samples from the ```penguin```
 
 <p align="center">
-    <img src="images/cherry_0.4_big_logistic_mixture20latentnoflows.png" width=350>
+    <img src="images/cherry_0.55_penguin.png" width=350>
 </p>
 
 ## Creating your own model configuration
