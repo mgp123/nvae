@@ -147,7 +147,7 @@ The command is similar to ```sample.py```:
 Here is an example output:
 
 <p align="center">
-    <img src="images/latent_space_exploration_big_logistic_mixture20latentnoflows.png" width=466.7>
+    <img src="images/latent_space_exploration_penguin.png" width=466.7>
 </p>
 
 
