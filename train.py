@@ -145,9 +145,14 @@ def train():
                 else:
                     regularization_loss = 0
 
-            if half_precision:
+                # we need to put it inside the autocast because checkpointing+autocast breaks otherwise
+                if half_precision and use_tensor_checkpoints:
+                    scaler.scale(loss).backward()
+
+
+            if half_precision and not use_tensor_checkpoints:
                 scaler.scale(loss).backward()
-            else:
+            elif not half_precision:
                 loss.backward()
 
             if gradient_clipping is not None:

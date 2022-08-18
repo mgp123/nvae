@@ -125,10 +125,10 @@ Now, for the training parameters we have:
 - ```gradient_clipping```. Default to none. May help if you are getting nans during training. 
 If you keep getting nans then it is likely that the cause is a kernel  going to almost zero causing the weight normalization breaks. Gradient clipping won't help here.
 - ```half_precision```. Use half precision. This reduces memory usage, but can lead to unstable behavior.
-- ```use_tensor_checkpoints```. Use tensor checkpointing. This significantly reduces memory usage but increases computation time. Note that this messes up the momentum of the batchnorm.
+- ```use_tensor_checkpoints```. Use tensor checkpointing. This significantly reduces memory usage but increases computation time. Note that this messes up the momentum of the batchnorm. Try to avoid combining checkpointing with ```half_precision```. It won't break but it may affect training.
 
 Note that all the parameters are going to be loaded from the configuration file when you resume training.
-As a consequence, you can also modfy the training parameters even after you started to train. 
+As a consequence, you can also modify the training parameters even after you started to train. 
 As an example, if you want to increase the ```kl_constant``` you simply modify the ```.yaml``` file and resume training. 
 
 ## Exploring the latent variables
