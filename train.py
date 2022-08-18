@@ -118,7 +118,7 @@ def train():
 
     last_loss = 0 # only used to check for nans before checkpoints 
     last_reg_loss = 0
-    reg_loss_threshold = 2.5e+4
+    reg_loss_threshold = None
 
     for epoch in tqdm(range(initial_epoch, epochs), initial=initial_epoch, total=epochs, desc="epoch"):
 
