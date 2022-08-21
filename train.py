@@ -2,6 +2,7 @@ import sys
 import torch
 from tqdm import tqdm
 from os.path import exists
+from os import makedirs
 from data_loaders import get_data_loaders
 from dummyWith import dummyWith
 from kl_scheduler import KLScheduler
@@ -14,6 +15,9 @@ import torch.utils.checkpoint as checkpoint
 torch.backends.cudnn.benchmark = True
 
 def train():
+    makedirs("runs", exist_ok=True)
+    makedirs("saved_weights", exist_ok=True)
+
     model_code_name = "logistic_mixture10latent"
     model_code_name = sys.argv[1]
     checkpoint_file = "saved_weights/" + model_code_name + ".checkpoint"
