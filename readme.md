@@ -84,7 +84,7 @@ You can also change the batch size or the amount of pictures in final output by 
 Here are some cherry-picked samples from the ```penguin```
 
 <p align="center">
-    <img src="images/cherry_0.55_penguin.png" width=350>
+    <img src="images/cherry_0.62_penguin.png" width=350>
 </p>
 
 ## Creating your own model configuration
