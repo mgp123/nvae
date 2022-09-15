@@ -136,7 +136,7 @@ As an example, if you want to increase the ```kl_constant``` you simply modify t
 A fast and loose method to check how are the different latent variables affecting the result is to change one 
 of them while keeping the rest fixed. Here we pick one of the latent variables and jam the gaussian noise that is then multiplied to get the
 specific gaussian via the reparametrization trick while keeping the noise for the other variables fixed. Note that all the latent variables that come
-after the selected one are still going to be modified but they'll still the same noise vector.
+after the selected one are still going to be modified but they'll still use the same noise vector.
 
 It's best to use noise with high variance to make the effects more noticeable.   
 Here ```latent_space_exploration.py``` does this for each of the latent variables
